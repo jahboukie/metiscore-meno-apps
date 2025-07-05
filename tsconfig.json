@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@types/*": ["shared/types/*"],
+      "@ui/*": ["shared/ui/*"],
+      "@backend/*": ["backend/src/*"]
+    },
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "strict": true
+  }
+}

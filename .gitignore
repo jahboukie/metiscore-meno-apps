@@ -1,0 +1,19 @@
+# Node modules
+node_modules/
+apps/*/node_modules/
+backend/node_modules/
+
+# Build output
+apps/*/.next/
+apps/*/dist/
+backend/dist/
+functions/lib/
+
+# Env
+.env*
+firebase-debug.log
+firestore-debug.log
+
+# IDE
+.vscode/
+.DS_Store

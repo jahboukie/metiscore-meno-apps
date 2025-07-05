@@ -1,7 +1,5 @@
 {
   "projects": {
-    "production": "claude-code-meno-app"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "claude-code-meno-app"
+  }
 }
