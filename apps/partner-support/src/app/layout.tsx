@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "./components/auth-provider"; // Import AuthProvider
 import { AuthButton } from "./components/auth-button";   // Import AuthButton
+import { PrivacyButton } from "./components/privacy-button"; // Import PrivacyButton
 
 export const metadata: Metadata = {
   title: "Metiscore Partner Support",
@@ -24,7 +25,8 @@ export default function RootLayout({
                 <span className="text-2xl font-bold text-slate-800">
                   Partner Support
                 </span>
-                <div className="flex items-center">
+                <div className="flex items-center gap-4">
+                  <PrivacyButton />
                   <AuthButton />
                 </div>
               </div>

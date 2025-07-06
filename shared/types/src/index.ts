@@ -49,6 +49,19 @@ export interface SentimentAnalysisResponse {
   // We can add any other fields from your API here
 }
 
+export interface RichAnalysisResponse extends SentimentAnalysisResponse {
+  partnerInsights?: {
+    supportRecommendations?: string[];
+    relationshipImpact?: string;
+    actionableSteps?: string[];
+  };
+  riskAssessment?: {
+    concernLevel?: 'low' | 'medium' | 'high';
+    recommendedActions?: string[];
+  };
+  // Enhanced analysis for partners
+}
+
 // Security and Compliance Types
 export interface UserConsent {
   userId: string;

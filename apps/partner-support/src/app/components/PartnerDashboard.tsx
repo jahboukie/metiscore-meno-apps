@@ -7,6 +7,7 @@ import { collection, query, where, onSnapshot, orderBy, Timestamp, doc, getDoc }
 import { httpsCallable } from 'firebase/functions';
 import { RichAnalysisResponse, SentimentAnalysisResponse } from '@metiscore/types';
 import { AnalysisReport, Button } from '@metiscore/ui';
+import { useAuth } from './auth-provider';
 
 interface PartnerDashboardProps {
   primaryUserId: string | null;
@@ -19,6 +20,8 @@ interface SharedJournalEntry {
 }
 
 export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
+  const { userConsent, hasValidConsent, logAction } = useAuth();
+  
   const [sharedEntries, setSharedEntries] = useState<SharedJournalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +33,19 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
-    if (!primaryUserId) {
+    if (!primaryUserId || !hasValidConsent) {
       setIsLoading(false);
       setSharedEntries([]);
       return;
     }
+
+    // Check if user has consent for data processing
+    if (!userConsent?.dataProcessing) {
+      setIsLoading(false);
+      setError("Data processing consent is required to view shared entries.");
+      return;
+    }
+    
     const entriesRef = collection(db, 'journal_entries');
     const q = query(
       entriesRef,
@@ -47,13 +58,16 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
       setSharedEntries(entries);
       setIsLoading(false);
       setError(null);
+      
+      // Log data access
+      logAction('shared_entries_viewed', primaryUserId, { entriesCount: entries.length });
     }, (err) => {
       console.error("Firestore query error:", err);
       setError("Data could not be loaded. A database index may be required. Check browser console.");
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [primaryUserId]);
+  }, [primaryUserId, hasValidConsent, userConsent, logAction]);
 
   const connectToPartner = async () => {
     if (!connectionCode.trim()) return;
@@ -73,9 +87,19 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
   };
 
   const handleAnalyzeClick = (entry: SharedJournalEntry) => {
+    // Check consent for sentiment analysis
+    if (!userConsent?.sentimentAnalysis) {
+      setError("Sentiment analysis consent is required for this feature.");
+      return;
+    }
+
     setSelectedEntryId(entry.id);
     setIsAnalyzing(true);
-    // TODO: Implement analysis functionality
+    
+    // Log analysis action
+    logAction('entry_analysis_requested', entry.id, { entryUserId: primaryUserId });
+    
+    // TODO: Implement actual analysis functionality
     setTimeout(() => {
       setIsAnalyzing(false);
       setAnalysisResult({ 
@@ -83,6 +107,9 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
         confidence: 0.8,
         summary: 'This entry shows positive mood indicators.'
       } as any);
+      
+      // Log analysis completion
+      logAction('entry_analysis_completed', entry.id);
     }, 2000);
   };
 
@@ -93,6 +120,35 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
         <p className="mt-2 text-gray-600">
           {primaryUserId ? 'Viewing shared entries from your partner.' : 'Welcome to Partner Support! Connect with your partner to view shared entries.'}
         </p>
+
+        {/* Consent Status Indicator */}
+        {!hasValidConsent && (
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-amber-600 mr-3">⚠️</div>
+              <div>
+                <h4 className="text-amber-800 font-semibold">Privacy Consent Required</h4>
+                <p className="text-amber-700 text-sm mt-1">
+                  Please review and accept our privacy policy to access all features. Some functionality may be limited until consent is provided.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {hasValidConsent && userConsent && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center text-sm">
+              <div className="text-green-600 mr-2">✓</div>
+              <span className="text-green-800">
+                Privacy settings active: 
+                {userConsent.dataProcessing && ' Data Processing'}
+                {userConsent.sentimentAnalysis && ' • AI Analysis'}
+                {userConsent.researchParticipation && ' • Research Participation'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {primaryUserId ? (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
