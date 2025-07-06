@@ -179,20 +179,112 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
             </div>
           </div>
         ) : (
-          <div className="mt-6 text-center py-12">
-            <div className="max-w-md mx-auto">
-              <div className="bg-blue-50 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">🤝 Connect with Your Partner</h3>
-                <p className="text-blue-700">Enter a 6-digit code from your partner to access shared journal entries and personalized insights.</p>
+          <div className="mt-6">
+            {/* Welcome Section for Non-Connected Users */}
+            <div className="text-center py-8 mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Start Your Support Journey
+              </h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Access expert guidance, practical strategies, and comprehensive resources to become 
+                a confident menopause support partner - no connection required.
+              </p>
+            </div>
+
+            {/* Educational Content Cards */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <div 
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = '/learn'}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-3">🎓</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Learning Center</h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    Comprehensive guides covering menopause basics, symptoms, and support strategies.
+                  </p>
+                  <div className="text-blue-600 font-medium text-sm">Explore Topics →</div>
+                </div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">📚 Available Features</h3>
-                <ul className="text-left text-gray-700 space-y-2">
-                  <li>• Educational content about menopause</li>
-                  <li>• Support guides and tips</li>
-                  <li>• Community resources</li>
-                  <li>• AI-powered assistance</li>
-                </ul>
+
+              <div 
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = '/learn/faq'}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-3">❓</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">FAQ</h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    Quick answers to the most common questions about supporting someone through menopause.
+                  </p>
+                  <div className="text-blue-600 font-medium text-sm">Browse FAQ →</div>
+                </div>
+              </div>
+
+              <div 
+                className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => window.location.href = '/learn/support-guide'}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-3">🤝</div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Support Guide</h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    Step-by-step strategies for providing emotional and practical support.
+                  </p>
+                  <div className="text-blue-600 font-medium text-sm">View Guide →</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Tips Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 Today's Quick Tips</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Communication Tip</h4>
+                  <p className="text-gray-700 text-sm">
+                    Instead of "Are you okay?" try "I can see you're dealing with a lot. What would help you feel better right now?"
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Practical Support</h4>
+                  <p className="text-gray-700 text-sm">
+                    Keep the house cooler than usual and have a portable fan ready. Small comfort measures make a big difference.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Connection Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  🔗 Ready for Personalized Support?
+                </h3>
+                <p className="text-gray-600">
+                  Connect with your partner to receive personalized insights based on their actual experiences and mood patterns.
+                </p>
+              </div>
+              
+              <div className="max-w-md mx-auto">
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-blue-900 mb-2">With Partner Connection:</h4>
+                  <ul className="text-blue-800 text-sm space-y-1">
+                    <li>• View shared journal entries and mood logs</li>
+                    <li>• Get AI-powered analysis and insights</li>
+                    <li>• Receive personalized support recommendations</li>
+                    <li>• Track patterns and triggers together</li>
+                  </ul>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-gray-600 text-sm mb-4">
+                    Ask your partner to generate a connection code in their MenoWellness app
+                  </p>
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-medium transition-colors">
+                    Enter Connection Code
+                  </button>
+                </div>
               </div>
             </div>
           </div>

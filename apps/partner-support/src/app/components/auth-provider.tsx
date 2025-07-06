@@ -93,18 +93,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
       
-      const auditLog: Omit<AuditLog, 'id'> = {
+      // Create audit log object and filter out undefined values
+      const auditLogData: any = {
         userId: user.uid,
         action,
-        timestamp: serverTimestamp() as any,
+        timestamp: serverTimestamp(),
         ipAddress: 'unknown', // Would be set by backend in production
         userAgent: navigator.userAgent,
-        resourceId,
-        resourceType: 'partner_support',
-        details
+        resourceType: 'partner_support'
       };
 
-      await addDoc(collection(db, 'audit_logs'), auditLog);
+      // Only add optional fields if they have values
+      if (resourceId !== undefined) {
+        auditLogData.resourceId = resourceId;
+      }
+      if (details !== undefined) {
+        auditLogData.details = details;
+      }
+
+      await addDoc(collection(db, 'audit_logs'), auditLogData);
     } catch (error) {
       console.error('Error logging action:', error);
     }
