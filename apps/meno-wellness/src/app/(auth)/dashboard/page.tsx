@@ -77,17 +77,26 @@ export default function DashboardPage() {
   // Handle consent submission
   const handleConsentGiven = async (consent: UserConsent) => {
     try {
-      await setDoc(doc(db, 'user_consents', user!.uid), {
-        ...consent,
-        consentTimestamp: serverTimestamp(),
-      });
+      // Update local state immediately for faster UI response
       setUserConsent(consent);
       setShowConsentManager(false);
       
-      // Log consent action for audit trail
-      await logUserAction('consent_given');
+      // Save to database in background
+      const savePromise = setDoc(doc(db, 'user_consents', user!.uid), {
+        ...consent,
+        consentTimestamp: serverTimestamp(),
+      });
+      
+      // Log audit action in background
+      const logPromise = logUserAction('consent_given');
+      
+      // Don't await these - let them complete in background
+      Promise.all([savePromise, logPromise]).catch(error => {
+        console.error('Error saving consent or logging:', error);
+      });
+      
     } catch (error) {
-      console.error('Error saving consent:', error);
+      console.error('Error in consent flow:', error);
       throw error;
     }
   };

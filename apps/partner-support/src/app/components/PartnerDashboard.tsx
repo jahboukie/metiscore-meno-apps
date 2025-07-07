@@ -15,7 +15,7 @@ interface PartnerDashboardProps {
 
 // --- FIX: All hooks and logic are now correctly inside the component function ---
 export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
-  const { user, setConnectedPartnerId } = useAuth();
+  const { user, setConnectedPartner } = useAuth();
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -45,7 +45,7 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
       const result: any = await acceptPartnerInvite({ inviteCode: connectionCode });
 
       if (result.data.success && result.data.primaryUserId) {
-        setConnectedPartnerId(result.data.primaryUserId);
+        setConnectedPartner(result.data.primaryUserId);
         router.push('/premium'); // Redirect to premium page
       } else {
         throw new Error(result.data.message || 'Connection failed.');

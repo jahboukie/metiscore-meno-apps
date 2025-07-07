@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../components/auth-provider';
+import { useAuth } from '../components/auth-provider';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -139,7 +139,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-orange-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
           <p className="text-gray-600">Loading your profile...</p>
         </div>
       </div>
@@ -147,19 +147,19 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-300 to-green-300 px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4 py-8">
       {/* Header */}
       <div className="max-w-4xl mx-auto mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="text-3xl">🌿</div>
-            <h1 className="text-3xl font-bold text-white" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>
-              Your Privacy & Wellness
+            <div className="text-3xl">🛡️</div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Partner Privacy & Support
             </h1>
           </div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="p-3 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 transition-colors border border-white/20"
+            className="p-3 bg-white shadow-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors border"
             aria-label="Back to dashboard"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,14 +175,14 @@ export default function ProfilePage() {
         <div className="bg-white rounded-xl shadow-lg p-8 mb-8 transition-all duration-300 hover:shadow-xl">
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">Your Account</h2>
           <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-gradient-to-br from-red-100 to-purple-100 rounded-full flex items-center justify-center">
-              <span className="text-3xl">🌸</span>
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+              <span className="text-3xl">🤝</span>
             </div>
             <div>
-              <p className="text-xl font-medium text-gray-800 mb-1">{user.displayName || 'Welcome!'}</p>
+              <p className="text-xl font-medium text-gray-800 mb-1">{user.displayName || 'Welcome Partner!'}</p>
               <p className="text-gray-600 mb-2">{user.email}</p>
               <p className="text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full inline-block">
-                Protected by {jurisdiction === 'US' ? 'HIPAA' : jurisdiction === 'CA' ? 'PIPEDA' : 'GDPR'}
+                Support Partner • Protected by {jurisdiction === 'US' ? 'HIPAA' : jurisdiction === 'CA' ? 'PIPEDA' : 'GDPR'}
               </p>
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function ProfilePage() {
               : 'bg-red-50 border border-red-200 text-red-800'
           }`}>
             <div className="flex items-center">
-              <div className="text-2xl mr-3">{saveMessage.includes('✅') ? '🌿' : '⚠️'}</div>
+              <div className="text-2xl mr-3">{saveMessage.includes('✅') ? '🤝' : '⚠️'}</div>
               <p className="text-lg font-medium">{saveMessage}</p>
             </div>
           </div>
@@ -211,28 +211,28 @@ export default function ProfilePage() {
                 {jurisdictionText.title}
               </h2>
             </div>
-            <p className="text-gray-600 text-lg leading-relaxed bg-gray-50 p-4 rounded-lg">
+            <p className="text-gray-600 text-lg leading-relaxed bg-blue-50 p-4 rounded-lg">
               {jurisdictionText.subtitle}
             </p>
             <p className="text-gray-500 mt-3 text-sm">
-              We believe in giving you full control over your personal wellness data. 
+              As a support partner, you have access to shared wellness data to better support your loved one. 
               Each setting below can be customized to your comfort level.
             </p>
           </div>
 
           <div className="space-y-8">
             {/* Data Processing */}
-            <div className="border border-red-200 rounded-xl p-6 bg-red-50">
+            <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <div className="text-xl">📊</div>
                     <h3 className="text-lg font-semibold text-gray-800">
-                      Data Processing <span className="text-red-600 text-sm font-medium bg-red-100 px-2 py-1 rounded-full">*Required</span>
+                      Data Processing <span className="text-blue-600 text-sm font-medium bg-blue-100 px-2 py-1 rounded-full">*Required</span>
                     </h3>
                   </div>
                   <p className="text-gray-700 mb-4 leading-relaxed">
-                    I consent to the processing of my personal data for the purpose of providing wellness services and relationship insights.
+                    I consent to the processing of shared wellness data to provide personalized support guidance and relationship insights.
                   </p>
                 </div>
                 <div className="flex space-x-6 ml-6">
@@ -242,7 +242,7 @@ export default function ProfilePage() {
                       name="dataProcessing"
                       checked={consent.dataProcessing === true}
                       onChange={() => handleConsentToggle('dataProcessing', true)}
-                      className="h-5 w-5 text-red-400 focus:ring-red-300 border-gray-300"
+                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-green-700">On</span>
                   </label>
@@ -252,7 +252,7 @@ export default function ProfilePage() {
                       name="dataProcessing"
                       checked={consent.dataProcessing === false}
                       onChange={() => handleConsentToggle('dataProcessing', false)}
-                      className="h-5 w-5 text-red-400 focus:ring-red-300 border-gray-300"
+                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-red-700">Off</span>
                   </label>
@@ -266,10 +266,10 @@ export default function ProfilePage() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <div className="text-xl">🧠</div>
-                    <h3 className="text-lg font-semibold text-gray-800">Sentiment Analysis</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">AI-Powered Support Insights</h3>
                   </div>
                   <p className="text-gray-700 mb-4 leading-relaxed">
-                    I consent to the automated analysis of my journal entries to provide emotional insights and wellness recommendations.
+                    I consent to AI analysis of shared journal entries to receive personalized support recommendations and communication guidance.
                   </p>
                 </div>
                 <div className="flex space-x-6 ml-6">
@@ -279,7 +279,7 @@ export default function ProfilePage() {
                       name="sentimentAnalysis"
                       checked={consent.sentimentAnalysis === true}
                       onChange={() => handleConsentToggle('sentimentAnalysis', true)}
-                      className="h-5 w-5 text-purple-400 focus:ring-purple-300 border-gray-300"
+                      className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-green-700">On</span>
                   </label>
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                       name="sentimentAnalysis"
                       checked={consent.sentimentAnalysis === false}
                       onChange={() => handleConsentToggle('sentimentAnalysis', false)}
-                      className="h-5 w-5 text-purple-400 focus:ring-purple-300 border-gray-300"
+                      className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-red-700">Off</span>
                   </label>
@@ -303,10 +303,10 @@ export default function ProfilePage() {
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <div className="text-xl">🌍</div>
-                    <h3 className="text-lg font-semibold text-gray-800">Anonymized Data Licensing</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">Anonymized Research Contribution</h3>
                   </div>
                   <p className="text-gray-700 mb-4 leading-relaxed">
-                    I consent to the use of my anonymized, aggregated data for research purposes and clinical trials to advance healthcare.
+                    I consent to contributing anonymized support interaction data to advance menopause care and partner support research.
                   </p>
                 </div>
                 <div className="flex space-x-6 ml-6">
@@ -316,7 +316,7 @@ export default function ProfilePage() {
                       name="anonymizedLicensing"
                       checked={consent.anonymizedLicensing === true}
                       onChange={() => handleConsentToggle('anonymizedLicensing', true)}
-                      className="h-5 w-5 text-green-400 focus:ring-green-300 border-gray-300"
+                      className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-green-700">On</span>
                   </label>
@@ -326,7 +326,7 @@ export default function ProfilePage() {
                       name="anonymizedLicensing"
                       checked={consent.anonymizedLicensing === false}
                       onChange={() => handleConsentToggle('anonymizedLicensing', false)}
-                      className="h-5 w-5 text-green-400 focus:ring-green-300 border-gray-300"
+                      className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-red-700">Off</span>
                   </label>
@@ -335,15 +335,15 @@ export default function ProfilePage() {
             </div>
 
             {/* Research Participation */}
-            <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
+            <div className="border border-indigo-200 rounded-xl p-6 bg-indigo-50">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <div className="text-xl">🔬</div>
-                    <h3 className="text-lg font-semibold text-gray-800">Research Participation</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">Partner Support Research</h3>
                   </div>
                   <p className="text-gray-700 mb-4 leading-relaxed">
-                    I consent to participate in anonymous research studies that may help improve mental health and wellness services.
+                    I consent to participate in anonymous studies focused on improving partner support strategies and relationship wellness.
                   </p>
                 </div>
                 <div className="flex space-x-6 ml-6">
@@ -353,7 +353,7 @@ export default function ProfilePage() {
                       name="researchParticipation"
                       checked={consent.researchParticipation === true}
                       onChange={() => handleConsentToggle('researchParticipation', true)}
-                      className="h-5 w-5 text-blue-400 focus:ring-blue-300 border-gray-300"
+                      className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-green-700">On</span>
                   </label>
@@ -363,7 +363,7 @@ export default function ProfilePage() {
                       name="researchParticipation"
                       checked={consent.researchParticipation === false}
                       onChange={() => handleConsentToggle('researchParticipation', false)}
-                      className="h-5 w-5 text-blue-400 focus:ring-blue-300 border-gray-300"
+                      className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300"
                     />
                     <span className="ml-3 text-base font-medium text-red-700">Off</span>
                   </label>
@@ -372,32 +372,32 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* User Rights */}
+          {/* Partner-Specific Rights */}
           <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="text-2xl">⚖️</div>
-              <h4 className="text-lg font-semibold text-blue-900">Your Rights</h4>
+              <div className="text-2xl">🤝</div>
+              <h4 className="text-lg font-semibold text-blue-900">Your Partner Rights</h4>
             </div>
             <ul className="text-blue-800 space-y-2">
               <li className="flex items-center space-x-2">
                 <span className="text-blue-500">✓</span>
-                <span>Right to access your personal data</span>
+                <span>Access to shared wellness data only with explicit permission</span>
               </li>
               <li className="flex items-center space-x-2">
                 <span className="text-blue-500">✓</span>
-                <span>Right to correct inaccurate data</span>
+                <span>Right to disconnect from partner data at any time</span>
               </li>
               <li className="flex items-center space-x-2">
                 <span className="text-blue-500">✓</span>
-                <span>Right to delete your data</span>
+                <span>Right to delete your support interaction history</span>
               </li>
               <li className="flex items-center space-x-2">
                 <span className="text-blue-500">✓</span>
-                <span>Right to data portability</span>
+                <span>Right to export your learning progress and preferences</span>
               </li>
               <li className="flex items-center space-x-2">
                 <span className="text-blue-500">✓</span>
-                <span>Right to withdraw consent at any time</span>
+                <span>Right to withdraw consent and maintain support access</span>
               </li>
             </ul>
           </div>
@@ -413,7 +413,7 @@ export default function ProfilePage() {
             <Button
               onClick={handleSaveConsent}
               disabled={isSaving}
-              className="px-8 py-3 bg-red-400 hover:bg-red-500 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 disabled:bg-gray-400 disabled:scale-100"
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 disabled:bg-gray-400 disabled:scale-100"
             >
               {isSaving ? (
                 <div className="flex items-center">
@@ -421,14 +421,14 @@ export default function ProfilePage() {
                   Saving...
                 </div>
               ) : (
-                '🌿 Save Preferences'
+                '🤝 Save Preferences'
               )}
             </Button>
           </div>
 
           <p className="text-sm text-gray-600 mt-6 p-4 bg-gray-50 rounded-lg">
-            🌿 <strong>Note:</strong> Data Processing consent is required for basic app functionality. 
-            Optional consents help us provide better services and advance healthcare research. 
+            🤝 <strong>Note:</strong> Data Processing consent is required for partner support functionality. 
+            Optional consents help us provide better guidance and advance relationship wellness research. 
             You can change these settings anytime.
           </p>
         </div>

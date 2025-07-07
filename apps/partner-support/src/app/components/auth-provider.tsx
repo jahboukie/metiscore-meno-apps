@@ -17,6 +17,7 @@ interface AuthContextType {
   loading: boolean;
   hasValidConsent: boolean;
   showConsentModal: boolean;
+  partnerId: string | null;
   setConnectedPartner: (partnerId: string) => void;
   updateConsent: (consent: UserConsent) => Promise<void>;
   withdrawConsent: () => Promise<void>;
@@ -111,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user, appUser, userConsent, loading, hasValidConsent, showConsentModal,
+    partnerId: appUser?.partnerId || null,
     setConnectedPartner, updateConsent, withdrawConsent, logAction,
   };
 

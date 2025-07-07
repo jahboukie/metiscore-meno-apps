@@ -30,12 +30,13 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [hasExistingConsent, setHasExistingConsent] = useState(false);
+  const [hasValidConsent, setHasValidConsent] = useState(false);
 
   useEffect(() => {
     if (initialConsent) {
       setConsent(initialConsent);
-      setHasExistingConsent(true);
+      // Only consider consent valid if it has a timestamp (was actually submitted)
+      setHasValidConsent(!!initialConsent.consentTimestamp && !!initialConsent.dataProcessing);
     }
   }, [initialConsent]);
 
@@ -44,6 +45,8 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
       ...prev,
       [field]: value
     }));
+    // Don't change hasValidConsent when user is just interacting with the form
+    // Only set it when they actually submit or when there's existing valid consent
   };
 
   const handleSubmitConsent = async () => {
@@ -59,7 +62,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
       } as UserConsent;
 
       await onConsentGiven(fullConsent);
-      setHasExistingConsent(true);
+      setHasValidConsent(true);
     } catch (error) {
       console.error('Error submitting consent:', error);
     } finally {
@@ -78,7 +81,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
         anonymizedLicensing: false,
         researchParticipation: false,
       }));
-      setHasExistingConsent(false);
+      setHasValidConsent(false);
     } catch (error) {
       console.error('Error withdrawing consent:', error);
     } finally {
@@ -117,7 +120,7 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
 
   const jurisdictionText = getJurisdictionSpecificText();
 
-  if (hasExistingConsent && consent.dataProcessing) {
+  if (hasValidConsent) {
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between">

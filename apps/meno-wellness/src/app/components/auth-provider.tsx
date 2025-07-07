@@ -20,8 +20,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
+      
+      // Run onboarding in background, don't block UI
       if (user) {
-        onboardUser(user);
+        onboardUser(user).catch(error => {
+          console.error('Onboarding failed:', error);
+        });
       }
     });
     return () => unsubscribe();
@@ -29,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = { user, loading };
 
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => {

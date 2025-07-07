@@ -12,7 +12,8 @@ export default function HomePage() {
   useEffect(() => {
     // When user is no longer loading and is authenticated, send them to the dashboard
     if (!loading && user) {
-      router.push('/dashboard');
+      // Use replace instead of push for faster redirect without history entry
+      router.replace('/dashboard');
     }
   }, [user, loading, router]);
 
