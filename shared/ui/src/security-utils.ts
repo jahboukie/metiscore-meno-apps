@@ -5,6 +5,7 @@ import { UserConsent, AuditLog, EncryptedData } from '@metiscore/types';
 export class SecurityUtils {
   private static readonly ENCRYPTION_KEY_SIZE = 32; // 256 bits
   private static readonly IV_SIZE = 16; // 128 bits
+  private static readonly KEY_STORAGE_PREFIX = 'meno_key_';
 
   // Generate a secure random key for field-level encryption
   static async generateKey(): Promise<CryptoKey> {
@@ -16,6 +17,310 @@ export class SecurityUtils {
       true,
       ['encrypt', 'decrypt']
     );
+  }
+
+  // Store encryption key securely in IndexedDB
+  static async storeKey(userId: string, key: CryptoKey): Promise<void> {
+    try {
+      const db = await this.openKeyStore();
+      const transaction = db.transaction(['keys'], 'readwrite');
+      const store = transaction.objectStore('keys');
+      
+      const exportedKey = await crypto.subtle.exportKey('raw', key);
+      await store.put({ 
+        userId, 
+        key: exportedKey,
+        createdAt: new Date(),
+        algorithm: 'AES-GCM'
+      });
+    } catch (error) {
+      console.error('Failed to store encryption key:', error);
+      throw new Error('Key storage failed');
+    }
+  }
+
+  // Retrieve encryption key from IndexedDB
+  static async retrieveKey(userId: string): Promise<CryptoKey | null> {
+    try {
+      const db = await this.openKeyStore();
+      const transaction = db.transaction(['keys'], 'readonly');
+      const store = transaction.objectStore('keys');
+      
+      const result = await store.get(userId);
+      if (!result) return null;
+
+      // Convert ArrayBuffer to Uint8Array if needed
+      const keyData = result.key instanceof ArrayBuffer 
+        ? new Uint8Array(result.key)
+        : result.key;
+
+      return await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'AES-GCM' },
+        true,
+        ['encrypt', 'decrypt']
+      );
+    } catch (error) {
+      console.error('Failed to retrieve encryption key:', error);
+      return null;
+    }
+  }
+
+  // Initialize or retrieve user's encryption key
+  static async getUserEncryptionKey(userId: string): Promise<CryptoKey> {
+    let key = await this.retrieveKey(userId);
+    
+    if (!key) {
+      key = await this.generateKey();
+      await this.storeKey(userId, key);
+    }
+    
+    return key;
+  }
+
+  // Open IndexedDB for key storage
+  private static async openKeyStore(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('MenoEncryptionStore', 2);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
+        
+        // Version 1: Initial key store
+        if (oldVersion < 1) {
+          if (!db.objectStoreNames.contains('keys')) {
+            const store = db.createObjectStore('keys', { keyPath: 'userId' });
+            store.createIndex('createdAt', 'createdAt');
+          }
+        }
+        
+        // Version 2: Add key rotation support
+        if (oldVersion < 2) {
+          if (!db.objectStoreNames.contains('keyRotations')) {
+            const rotationStore = db.createObjectStore('keyRotations', { keyPath: 'id', autoIncrement: true });
+            rotationStore.createIndex('userId', 'userId');
+            rotationStore.createIndex('rotatedAt', 'rotatedAt');
+          }
+          
+          if (!db.objectStoreNames.contains('keyBackups')) {
+            const backupStore = db.createObjectStore('keyBackups', { keyPath: 'id', autoIncrement: true });
+            backupStore.createIndex('userId', 'userId');
+            backupStore.createIndex('createdAt', 'createdAt');
+          }
+        }
+      };
+    });
+  }
+
+  // Rotate encryption key (generates new key, keeps old for decryption)
+  static async rotateUserKey(userId: string): Promise<CryptoKey> {
+    try {
+      const db = await this.openKeyStore();
+      const transaction = db.transaction(['keys', 'keyRotations'], 'readwrite');
+      const keyStore = transaction.objectStore('keys');
+      const rotationStore = transaction.objectStore('keyRotations');
+      
+      // Get current key
+      const currentKeyData = await keyStore.get(userId);
+      if (!currentKeyData) {
+        throw new Error('No current key found for rotation');
+      }
+      
+      // Generate new key
+      const newKey = await this.generateKey();
+      const exportedNewKey = await crypto.subtle.exportKey('raw', newKey);
+      
+      // Convert ArrayBuffer to Uint8Array if needed
+      const keyData = currentKeyData.key instanceof ArrayBuffer 
+        ? new Uint8Array(currentKeyData.key)
+        : currentKeyData.key;
+
+      // Store rotation record
+      await rotationStore.add({
+        userId,
+        oldKeyId: await this.getKeyId(await crypto.subtle.importKey(
+          'raw',
+          keyData,
+          { name: 'AES-GCM' },
+          true,
+          ['encrypt', 'decrypt']
+        )),
+        newKeyId: await this.getKeyId(newKey),
+        rotatedAt: new Date(),
+        reason: 'manual_rotation'
+      });
+      
+      // Update main key
+      await keyStore.put({
+        userId,
+        key: exportedNewKey,
+        createdAt: new Date(),
+        algorithm: 'AES-GCM',
+        version: (currentKeyData.version || 1) + 1
+      });
+      
+      return newKey;
+    } catch (error) {
+      console.error('Key rotation failed:', error);
+      throw new Error('Key rotation failed');
+    }
+  }
+
+  // Create encrypted backup of user's key
+  static async createKeyBackup(userId: string, backupPassword: string): Promise<string> {
+    try {
+      const userKey = await this.retrieveKey(userId);
+      if (!userKey) {
+        throw new Error('No key found to backup');
+      }
+      
+      const exportedKey = await crypto.subtle.exportKey('raw', userKey);
+      
+      // Derive key from password
+      const passwordKey = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(backupPassword),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const derivedKey = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+      
+      // Encrypt the user key
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encryptedKey = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        derivedKey,
+        exportedKey
+      );
+      
+      // Combine salt, iv, and encrypted key
+      const backup = new Uint8Array(salt.length + iv.length + encryptedKey.byteLength);
+      backup.set(salt);
+      backup.set(iv, salt.length);
+      backup.set(new Uint8Array(encryptedKey), salt.length + iv.length);
+      
+      const backupString = btoa(String.fromCharCode.apply(null, Array.from(backup)));
+      
+      // Store backup metadata
+      const db = await this.openKeyStore();
+      const transaction = db.transaction(['keyBackups'], 'readwrite');
+      const backupStore = transaction.objectStore('keyBackups');
+      
+      await backupStore.add({
+        userId,
+        createdAt: new Date(),
+        backupId: await this.getKeyId(userKey),
+        encrypted: true
+      });
+      
+      return backupString;
+    } catch (error) {
+      console.error('Key backup failed:', error);
+      throw new Error('Key backup failed');
+    }
+  }
+
+  // Restore key from encrypted backup
+  static async restoreKeyFromBackup(userId: string, backupString: string, backupPassword: string): Promise<void> {
+    try {
+      const backup = new Uint8Array(
+        atob(backupString).split('').map(char => char.charCodeAt(0))
+      );
+      
+      const salt = backup.slice(0, 16);
+      const iv = backup.slice(16, 28);
+      const encryptedKey = backup.slice(28);
+      
+      // Derive key from password
+      const passwordKey = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(backupPassword),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const derivedKey = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      
+      // Decrypt the user key
+      const decryptedKeyBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        derivedKey,
+        encryptedKey
+      );
+      
+      // Import and store the restored key
+      const restoredKey = await crypto.subtle.importKey(
+        'raw',
+        decryptedKeyBuffer,
+        { name: 'AES-GCM' },
+        true,
+        ['encrypt', 'decrypt']
+      );
+      
+      await this.storeKey(userId, restoredKey);
+    } catch (error) {
+      console.error('Key restoration failed:', error);
+      throw new Error('Key restoration failed - check password and backup data');
+    }
+  }
+
+  // Get key rotation history
+  static async getKeyRotationHistory(userId: string): Promise<any[]> {
+    try {
+      const db = await this.openKeyStore();
+      const transaction = db.transaction(['keyRotations'], 'readonly');
+      const store = transaction.objectStore('keyRotations');
+      const index = store.index('userId');
+      
+      const rotations: any[] = [];
+      return new Promise((resolve, reject) => {
+        const request = index.openCursor(userId);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            rotations.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(rotations.sort((a, b) => b.rotatedAt.getTime() - a.rotatedAt.getTime()));
+          }
+        };
+      });
+    } catch (error) {
+      console.error('Failed to get rotation history:', error);
+      return [];
+    }
   }
 
   // Encrypt sensitive data client-side

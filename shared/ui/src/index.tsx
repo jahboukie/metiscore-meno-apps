@@ -6,3 +6,5 @@ export * from './AnalysisReport';
 export * from './ConsentManager';
 export * from './SecurityAuthProvider';
 export * from './security-utils';
+export * from './UserDataManager';
+export * from './KeyManager';

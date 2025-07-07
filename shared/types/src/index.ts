@@ -15,6 +15,8 @@ export interface JournalEntry {
   userId: string; // The UID of the user who wrote it
   createdAt: Date;
   text: string; // The raw text for analysis (might be handled ephemerally)
+  encryptedText?: EncryptedData; // End-to-end encrypted text
+  isEncrypted?: boolean; // Whether the text field is encrypted
   analysis: Record<string, any>; // The structured JSON from the sentiment service
   isShared: boolean;
   appOrigin: string; // e.g., 'MenoWellness', 'SoberPal', etc.
@@ -113,4 +115,16 @@ export interface AnonymizedJournalEntry {
   timestamp: Date; // Rounded to hour for privacy
   cohortId: string;
   privacyBudgetUsed: number;
+}
+
+export interface DeletionRequest {
+  id: string;
+  userId: string;
+  requestedAt: Date;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  confirmationText: string;
+  ipAddress: string;
+  userAgent: string;
+  processedAt?: Date;
+  notes?: string;
 }

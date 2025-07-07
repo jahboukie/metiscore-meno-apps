@@ -208,9 +208,173 @@ export const anonymizeUserData = onCall(async (request) => {
   return { success: true };
 });
 
+// Internal function for account deletion logic
+async function executeAccountDeletion(userId: string, requestId: string): Promise<void> {
+  // Get the deletion request
+  const requestDoc = await db.collection('deletion_requests').doc(requestId).get();
+  if (!requestDoc.exists) {
+    throw new Error('Deletion request not found');
+  }
+
+  const deletionRequest = requestDoc.data()!;
+  
+  // Verify the request belongs to the user
+  if (deletionRequest.userId !== userId) {
+    throw new Error('Unauthorized deletion request');
+  }
+
+  // Start deletion process
+  const batch = db.batch();
+
+  // Delete user data collections
+  const collections = [
+    'journal_entries',
+    'user_consents', 
+    'audit_logs',
+    'data_retention'
+  ];
+
+  for (const collectionName of collections) {
+    const querySnapshot = await db.collection(collectionName)
+      .where('userId', '==', userId)
+      .get();
+    
+    querySnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+  }
+
+  // Delete user profile
+  batch.delete(db.collection('users').doc(userId));
+  
+  // Update deletion request status
+  batch.update(db.collection('deletion_requests').doc(requestId), {
+    status: 'completed',
+    processedAt: FieldValue.serverTimestamp(),
+    notes: 'Account and all associated data deleted successfully'
+  });
+
+  // Execute all deletions
+  await batch.commit();
+
+  // Delete the Firebase Auth account
+  await auth.deleteUser(userId);
+
+  // Log the completion
+  await logAuditAction(userId, 'account_deleted', userId, 'user_account', {
+    deletionRequestId: requestId,
+    dataCollectionsDeleted: collections.length
+  });
+}
+
+export const processAccountDeletion = onCall(async (request) => {
+  const { auth: userAuth, data } = request;
+  
+  if (!userAuth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { requestId } = data;
+  
+  try {
+    await executeAccountDeletion(userAuth.uid, requestId);
+    return { success: true, message: 'Account deleted successfully' };
+
+  } catch (error) {
+    logger.error('Account deletion failed:', error);
+    
+    // Update deletion request with failure status
+    if (requestId) {
+      await db.collection('deletion_requests').doc(requestId).update({
+        status: 'failed',
+        processedAt: FieldValue.serverTimestamp(),
+        notes: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+    
+    throw new HttpsError('internal', 'Account deletion failed');
+  }
+});
+
 export const cleanupExpiredData = onRequest(async (req, res) => {
-  // Full implementation...
-  res.status(200).json({ success: true });
+  try {
+    // Process pending deletion requests older than 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const expiredRequests = await db.collection('deletion_requests')
+      .where('status', '==', 'pending')
+      .where('requestedAt', '<=', thirtyDaysAgo)
+      .get();
+
+    let processedCount = 0;
+    
+    for (const doc of expiredRequests.docs) {
+      try {
+        await executeAccountDeletion(doc.data().userId, doc.id);
+        processedCount++;
+      } catch (error) {
+        logger.error(`Failed to process deletion for ${doc.id}:`, error);
+      }
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Processed ${processedCount} expired deletion requests` 
+    });
+  } catch (error) {
+    logger.error('Cleanup failed:', error);
+    res.status(500).json({ success: false, error: 'Cleanup failed' });
+  }
+});
+
+export const validateEncryptedData = onCall(async (request) => {
+  const { auth: userAuth, data } = request;
+  
+  if (!userAuth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { encryptedData, keyId } = data;
+  
+  try {
+    // Validate encrypted data structure
+    if (!encryptedData?.encryptedValue || !encryptedData?.algorithm || !keyId) {
+      throw new HttpsError('invalid-argument', 'Invalid encrypted data structure');
+    }
+
+    // Ensure algorithm is supported
+    if (encryptedData.algorithm !== 'AES-256-GCM') {
+      throw new HttpsError('invalid-argument', 'Unsupported encryption algorithm');
+    }
+
+    // Log successful validation for audit
+    await logAuditAction(userAuth.uid, 'encrypted_data_validated', undefined, 'journal_entry', {
+      keyId,
+      algorithm: encryptedData.algorithm,
+      dataSize: encryptedData.encryptedValue.length
+    });
+
+    return { 
+      success: true, 
+      message: 'Encrypted data validated successfully',
+      timestamp: FieldValue.serverTimestamp()
+    };
+
+  } catch (error) {
+    logger.error('Encrypted data validation failed:', error);
+    
+    await logAuditAction(userAuth.uid, 'encrypted_data_validation_failed', undefined, 'journal_entry', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      keyId
+    });
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    
+    throw new HttpsError('internal', 'Validation failed');
+  }
 });
 
 function detectJurisdiction(req: any): 'US' | 'CA' | 'EU' | 'OTHER' {

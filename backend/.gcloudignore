@@ -1,0 +1,16 @@
+# This file tells gcloud/firebase CLI what to ignore when deploying.
+
+# The .gcloudignore file is used by gcloud and firebase CLI to configure
+# which files to ignore when deploying.
+#
+# A comprehensive list of rules can be found in the gcloud reference:
+# https://cloud.google.com/sdk/gcloud/reference/topic/gcloudignore
+
+# Ignore everything except the compiled JS, package definitions, and node_modules.
+# The '!' prefix un-ignores a file or directory.
+
+*
+!lib
+!package.json
+!pnpm-lock.yaml
+!node_modules

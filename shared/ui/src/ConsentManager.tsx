@@ -62,9 +62,13 @@ export const ConsentManager: React.FC<ConsentManagerProps> = ({
       } as UserConsent;
 
       await onConsentGiven(fullConsent);
+      
+      // Update local state after successful submission
+      setConsent(fullConsent);
       setHasValidConsent(true);
     } catch (error) {
       console.error('Error submitting consent:', error);
+      // Don't set hasValidConsent to true if there was an error
     } finally {
       setIsLoading(false);
     }

@@ -5,7 +5,7 @@ import { useAuth } from '../../components/auth-provider';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { Button } from '@metiscore/ui';
+import { Button, UserDataManager, KeyManager } from '@metiscore/ui';
 import { UserConsent } from '@metiscore/types';
 import { ComplianceUtils } from '@metiscore/ui';
 
@@ -153,7 +153,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="text-3xl">🌿</div>
-            <h1 className="text-3xl font-bold text-white" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>
+            <h1 className="text-3xl font-bold text-gray-900" style={{ textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
               Your Privacy & Wellness
             </h1>
           </div>
@@ -431,6 +431,62 @@ export default function ProfilePage() {
             Optional consents help us provide better services and advance healthcare research. 
             You can change these settings anytime.
           </p>
+        </div>
+
+        {/* Encryption Key Management Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 transition-all duration-300 hover:shadow-xl">
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="text-3xl">🔐</div>
+              <h2 className="text-2xl font-semibold text-gray-800">
+                Encryption Management
+              </h2>
+            </div>
+            <p className="text-gray-600 text-lg leading-relaxed bg-gray-50 p-4 rounded-lg">
+              Manage your end-to-end encryption keys for journal entries and personal data. 
+              Your encryption keys are stored locally and never transmitted to our servers.
+            </p>
+          </div>
+
+          <KeyManager 
+            userId={user.uid}
+            onKeyRotated={() => {
+              console.log('Encryption key rotated');
+            }}
+            onBackupCreated={(backup) => {
+              console.log('Key backup created');
+            }}
+            onKeyRestored={() => {
+              console.log('Key restored from backup');
+            }}
+          />
+        </div>
+
+        {/* User Data Management Section */}
+        <div className="bg-white rounded-xl shadow-lg p-8 transition-all duration-300 hover:shadow-xl">
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="text-3xl">🛡️</div>
+              <h2 className="text-2xl font-semibold text-gray-800">
+                Your Data Rights
+              </h2>
+            </div>
+            <p className="text-gray-600 text-lg leading-relaxed bg-gray-50 p-4 rounded-lg">
+              As a user of our healthcare platform, you have the right to access, export, and delete your personal data 
+              in compliance with GDPR, PIPEDA, and HIPAA regulations.
+            </p>
+          </div>
+
+          <UserDataManager 
+            userId={user.uid}
+            onExportComplete={(exportData) => {
+              console.log('Data export completed:', exportData.export_info);
+            }}
+            onDeleteComplete={() => {
+              // Redirect to home page after deletion request
+              router.push('/');
+            }}
+          />
         </div>
       </main>
     </div>
