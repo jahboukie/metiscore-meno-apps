@@ -33,9 +33,11 @@ service cloud.firestore {
         );
     }
 
-    match /invites/{inviteCode} {
-      allow read, create: if isAuthenticated() && isOwner(request.resource.data.fromUserId);
-      allow update: if isAuthenticated();
+    match /partnerships/{partnershipId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.primaryUserUid || 
+         request.auth.uid == resource.data.connectedUserUid);
+      allow create, update, delete: if false; // Only Cloud Functions can manage partnerships
     }
 
     match /audit_logs/{logId} {

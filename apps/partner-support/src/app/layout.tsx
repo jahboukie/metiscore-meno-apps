@@ -30,6 +30,10 @@ export default function RootLayout({
                     <a href="/dashboard" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">
                       Dashboard
                     </a>
+                    <a href="/premium" className="text-gray-700 hover:text-blue-600 font-medium transition-colors flex items-center">
+                      <span className="mr-1">⭐</span>
+                      Premium
+                    </a>
                     <a href="/learn" className="text-gray-700 hover:text-blue-600 font-medium transition-colors">
                       Learn
                     </a>

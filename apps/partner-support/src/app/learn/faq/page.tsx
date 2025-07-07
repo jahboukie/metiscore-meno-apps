@@ -2,20 +2,36 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../components/auth-provider';
+import { useRouter } from 'next/navigation';
 import { faqData, categories, searchFAQs, FAQItem } from '@/data/faq-content';
 import { Button } from '@metiscore/ui';
 
 export default function FAQPage() {
-  const { user, logAction } = useAuth();
+  const { user, loading, logAction } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [filteredFAQs, setFilteredFAQs] = useState<FAQItem[]>(faqData);
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
     const results = searchFAQs(searchQuery, selectedCategory);
     setFilteredFAQs(results);
   }, [searchQuery, selectedCategory]);
+
+  if (loading) {
+    return <div className="text-center p-10">Loading...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-center p-10">Redirecting to sign in...</div>;
+  }
 
   const handleFAQClick = (faqId: string) => {
     setExpandedFAQ(expandedFAQ === faqId ? null : faqId);

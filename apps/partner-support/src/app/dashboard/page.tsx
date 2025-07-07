@@ -1,42 +1,28 @@
+// apps/partner-support/src/app/dashboard/page.tsx
 'use client';
 
 import { useAuth } from '../components/auth-provider';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PartnerDashboard } from '../components/PartnerDashboard';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 
 export default function PartnerDashboardPage() {
-  const { user, loading } = useAuth();
+  // This destructuring now correctly matches the AuthContextType
+  const { user, partnerId, loading } = useAuth();
   const router = useRouter();
-  const [partnerId, setPartnerId] = useState<string | null>(null);
-  const [loadingPartnerId, setLoadingPartnerId] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/');
     }
-
-    if (!loading && user) {
-      const fetchPartnerId = async () => {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setPartnerId(data.partnerId ?? null);
-        }
-        setLoadingPartnerId(false);
-      };
-      fetchPartnerId();
-    }
   }, [user, loading, router]);
 
-  if (loading || loadingPartnerId) {
-    return <div className="text-center p-10">Loading...</div>;
+  if (loading) {
+    return <div className="text-center p-10">Loading Dashboard...</div>;
   }
 
   if (!user) {
-    return <div className="text-center p-10">Redirecting to sign in...</div>;
+    return null; // Don't render anything while redirecting
   }
 
   return (

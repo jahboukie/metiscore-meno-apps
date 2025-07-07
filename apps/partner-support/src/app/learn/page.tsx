@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../components/auth-provider';
+import { useRouter } from 'next/navigation';
 import { Button } from '@metiscore/ui';
 
 interface ContentSection {
@@ -65,8 +66,23 @@ const contentSections: ContentSection[] = [
 ];
 
 export default function LearnPage() {
-  const { user, hasValidConsent, logAction } = useAuth();
+  const { user, loading, hasValidConsent, logAction } = useAuth();
+  const router = useRouter();
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return <div className="text-center p-10">Loading...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-center p-10">Redirecting to sign in...</div>;
+  }
 
   const handleSectionClick = (sectionId: string) => {
     setSelectedSection(sectionId);
