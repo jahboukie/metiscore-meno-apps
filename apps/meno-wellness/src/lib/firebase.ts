@@ -19,6 +19,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // Export the initialized services
 const auth = getAuth(app);
 const db = getFirestore(app);
-const functions = getFunctions(app, 'us-central1'); // Specify the region
+// Use Canadian region for PIPEDA/PHIPA compliance as per memory
+const functions = getFunctions(app, 'northamerica-northeast1');
 
 export { app, auth, db, functions };

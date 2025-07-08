@@ -11,9 +11,22 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/dashboard');
+      // Use router.push instead of router.replace for better navigation
+      router.push('/dashboard');
     }
   }, [user, loading, router]);
+
+  // If user is authenticated, show loading while redirecting
+  if (!loading && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

@@ -14,7 +14,10 @@ export function AuthButton() {
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      // The auth state change will trigger the redirect automatically
+      // No need to manually redirect here
+      console.log('Sign-in successful:', result.user.email);
     } catch (error) {
       console.error("Error signing in with Google", error);
     }

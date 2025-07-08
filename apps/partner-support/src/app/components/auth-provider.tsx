@@ -83,27 +83,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
   
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Set user state immediately to allow redirects
+      setUser(user);
+      setLoading(false);
+
+      // Handle additional data loading in background
       if (user) {
-        await onboardUser(user);
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) setAppUser(userDoc.data() as AppUser);
-        
-        const consentDoc = await getDoc(doc(db, 'user_consents', user.uid));
-        if (consentDoc.exists()) {
-          setUserConsent(consentDoc.data() as UserConsent);
-        } else {
-            setShowConsentModal(true);
-        }
-        
-        setUser(user);
+        // Run onboarding and data loading in background
+        const loadUserData = async () => {
+          try {
+            await onboardUser(user);
+
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              setAppUser(userDoc.data() as AppUser);
+            }
+
+            const consentDoc = await getDoc(doc(db, 'user_consents', user.uid));
+            if (consentDoc.exists()) {
+              setUserConsent(consentDoc.data() as UserConsent);
+            } else {
+              setShowConsentModal(true);
+            }
+          } catch (error) {
+            console.error('Error loading user data:', error);
+          }
+        };
+
+        loadUserData();
       } else {
-        setUser(null);
+        // Clear all user-related state when signed out
         setAppUser(null);
         setUserConsent(null);
+        setShowConsentModal(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);

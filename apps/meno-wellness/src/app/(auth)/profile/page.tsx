@@ -156,15 +156,32 @@ export default function ProfilePage() {
               Your Privacy & Wellness
             </h1>
           </div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="p-3 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 transition-colors border border-white/20"
-            aria-label="Back to dashboard"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex space-x-3">
+            <button
+              type="button"
+              onClick={() => router.push('/privacy-policy')}
+              className="px-4 py-2 bg-blue-600/20 backdrop-blur-sm rounded-lg text-blue-900 hover:bg-blue-600/30 transition-colors border border-blue-600/20 text-sm font-medium"
+            >
+              📋 Privacy Policy
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/terms-of-service')}
+              className="px-4 py-2 bg-green-600/20 backdrop-blur-sm rounded-lg text-green-900 hover:bg-green-600/30 transition-colors border border-green-600/20 text-sm font-medium"
+            >
+              📜 Terms of Service
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard')}
+              className="p-3 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 transition-colors border border-white/20"
+              aria-label="Back to dashboard"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 

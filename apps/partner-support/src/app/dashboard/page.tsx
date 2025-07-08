@@ -13,7 +13,7 @@ export default function PartnerDashboardPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/');
+      router.replace('/');
     }
   }, [user, loading, router]);
 

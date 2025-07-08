@@ -156,15 +156,25 @@ export default function ProfilePage() {
               Partner Privacy & Support
             </h1>
           </div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="p-3 bg-white shadow-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors border"
-            aria-label="Back to dashboard"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex space-x-3">
+            <button
+              type="button"
+              onClick={() => router.push('/privacy-policy')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              📋 Privacy Policy
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard')}
+              className="p-3 bg-white shadow-sm rounded-lg text-gray-600 hover:bg-gray-50 transition-colors border"
+              aria-label="Back to dashboard"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
