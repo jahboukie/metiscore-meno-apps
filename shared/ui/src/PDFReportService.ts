@@ -1,5 +1,6 @@
 // PDF Report Generation Service for Healthcare Providers
 import { JournalEntry, SentimentAnalysisResponse } from '@metiscore/types';
+import { AnalyticsData } from './AnalyticsService';
 
 export interface PDFReportData {
   patientInfo: {
@@ -7,9 +8,10 @@ export interface PDFReportData {
     email: string;
     reportDate: Date;
     reportPeriod: string;
+    userId: string;
   };
   journalEntries: JournalEntry[];
-  sentimentAnalysis: Array<SentimentAnalysisResponse & { date: Date }>;
+  analyticsData: AnalyticsData;
   summary: {
     totalEntries: number;
     averageSentiment: number;
@@ -17,6 +19,10 @@ export interface PDFReportData {
     symptomPatterns: Array<{ symptom: string; frequency: number; impact: number }>;
     riskAssessment: string;
     recommendations: string[];
+    wellnessScore: number;
+    consistencyScore: number;
+    supportSystemStrength: string;
+    treatmentMentions: number;
   };
 }
 
@@ -38,7 +44,7 @@ export class PDFReportService {
    * Generate HTML report that can be printed to PDF
    */
   private static generateHTMLReport(data: PDFReportData): string {
-    const { patientInfo, journalEntries, sentimentAnalysis, summary } = data;
+    const { patientInfo, journalEntries, analyticsData, summary } = data;
     
     return `
 <!DOCTYPE html>
@@ -204,8 +210,20 @@ export class PDFReportService {
                 <div class="summary-label">Average Sentiment</div>
             </div>
             <div class="summary-card">
+                <div class="summary-value">${summary.wellnessScore.toFixed(1)}/10</div>
+                <div class="summary-label">Wellness Score</div>
+            </div>
+            <div class="summary-card">
                 <div class="summary-value">${summary.commonEmotions[0]?.emotion || 'N/A'}</div>
                 <div class="summary-label">Primary Emotion</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">${summary.consistencyScore.toFixed(1)}/10</div>
+                <div class="summary-label">Journaling Consistency</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">${summary.supportSystemStrength}</div>
+                <div class="summary-label">Support System</div>
             </div>
         </div>
         
@@ -242,18 +260,20 @@ export class PDFReportService {
 
     <div class="section">
         <h2 class="section-title">📝 Recent Journal Entries</h2>
-        ${journalEntries.slice(0, 10).map((entry, index) => {
-            const analysis = sentimentAnalysis[index];
-            const sentimentClass = analysis?.sentiment?.score > 0.6 ? 'positive' : 
-                                 analysis?.sentiment?.score > 0.4 ? 'neutral' : 'negative';
+        ${journalEntries.slice(0, 10).map((entry) => {
+            const analysis = entry.analysis as SentimentAnalysisResponse;
+            const sentimentScore = analysis?.sentiment?.score || 0.5;
+            const sentimentClass = sentimentScore > 0.6 ? 'positive' :
+                                 sentimentScore > 0.4 ? 'neutral' : 'negative';
             return `
                 <div class="entry-item">
                     <div class="entry-date">${entry.createdAt.toLocaleDateString()}</div>
                     <div class="entry-sentiment sentiment-${sentimentClass}">
-                        ${analysis?.sentiment?.category || 'Unknown'} 
+                        ${analysis?.sentiment?.category || 'Unknown'}
                         (${analysis?.emotions?.primary || 'N/A'})
+                        - ${(sentimentScore * 100).toFixed(0)}%
                     </div>
-                    <p>${entry.text.length > 200 ? entry.text.substring(0, 200) + '...' : entry.text}</p>
+                    <p>${entry.text.length > 300 ? entry.text.substring(0, 300) + '...' : entry.text}</p>
                 </div>
             `;
         }).join('')}
@@ -317,49 +337,39 @@ export class PDFReportService {
   }
 
   /**
-   * Generate summary statistics from journal entries and sentiment analysis
+   * Generate summary statistics from analytics data
    */
   static generateSummary(
-    entries: JournalEntry[], 
-    sentimentData: Array<SentimentAnalysisResponse & { date: Date }>
+    entries: JournalEntry[],
+    analyticsData: AnalyticsData
   ): PDFReportData['summary'] {
-    const totalEntries = entries.length;
-    const averageSentiment = sentimentData.reduce((sum, item) => sum + (item.sentiment?.score || 0.5), 0) / sentimentData.length;
-    
-    // Count emotions
+    const totalEntries = analyticsData.totalEntries;
+    const averageSentiment = analyticsData.average_sentiment;
+
+    // Extract emotion distribution from analytics data
     const emotionCounts: Record<string, number> = {};
-    sentimentData.forEach(item => {
-      const emotion = item.emotions?.primary || 'unknown';
+    analyticsData.emotional_patterns.forEach(pattern => {
+      const emotion = pattern.primary_emotion || 'unknown';
       emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
     });
-    
+
     const commonEmotions = Object.entries(emotionCounts)
       .map(([emotion, frequency]) => ({ emotion, frequency }))
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, 5);
 
-    // Mock symptom patterns (in production, extract from journal text)
-    const symptomPatterns = [
-      { symptom: 'hot_flashes', frequency: 12, impact: -0.3 },
-      { symptom: 'sleep_issues', frequency: 8, impact: -0.4 },
-      { symptom: 'mood_swings', frequency: 6, impact: -0.2 },
-    ];
+    // Use real symptom patterns from analytics
+    const symptomPatterns = analyticsData.symptom_correlations.map(symptom => ({
+      symptom: symptom.symptom,
+      frequency: symptom.frequency,
+      impact: symptom.sentiment_impact
+    }));
 
-    // Assess overall risk
-    const highRiskCount = sentimentData.filter(item => item.crisisAssessment?.risk_level === 'high').length;
-    const mediumRiskCount = sentimentData.filter(item => item.crisisAssessment?.risk_level === 'medium').length;
-    
-    let riskAssessment = 'low';
-    if (highRiskCount > 0) riskAssessment = 'high';
-    else if (mediumRiskCount > totalEntries * 0.3) riskAssessment = 'medium';
+    // Use real risk assessment
+    const riskAssessment = analyticsData.riskAssessment.level;
 
-    const recommendations = [
-      'Continue regular wellness tracking and journaling',
-      'Monitor sleep patterns and their impact on mood',
-      'Consider discussing hormone therapy options if symptoms persist',
-      'Maintain regular exercise and stress management practices',
-      'Schedule follow-up appointment in 3 months'
-    ];
+    // Generate healthcare-specific recommendations based on analytics
+    const recommendations = this.generateHealthcareRecommendations(analyticsData);
 
     return {
       totalEntries,
@@ -367,7 +377,123 @@ export class PDFReportService {
       commonEmotions,
       symptomPatterns,
       riskAssessment,
-      recommendations
+      recommendations,
+      wellnessScore: analyticsData.wellness_score,
+      consistencyScore: analyticsData.consistencyScore,
+      supportSystemStrength: analyticsData.supportSystemStrength,
+      treatmentMentions: analyticsData.treatmentMentions
     };
+  }
+
+  /**
+   * Generate healthcare-specific recommendations based on analytics data
+   */
+  private static generateHealthcareRecommendations(analyticsData: AnalyticsData): string[] {
+    const recommendations: string[] = [];
+
+    // Base recommendations
+    recommendations.push('Continue regular wellness tracking and journaling');
+
+    // Sentiment-based recommendations
+    if (analyticsData.average_sentiment < 0.4) {
+      recommendations.push('Consider evaluation for mood support interventions');
+      recommendations.push('Discuss potential benefits of counseling or therapy');
+    } else if (analyticsData.average_sentiment > 0.7) {
+      recommendations.push('Current coping strategies appear effective - maintain current approach');
+    }
+
+    // Trend-based recommendations
+    if (analyticsData.overall_trend === 'declining') {
+      recommendations.push('Monitor for worsening symptoms and consider treatment adjustments');
+    } else if (analyticsData.overall_trend === 'improving') {
+      recommendations.push('Current treatment approach showing positive results');
+    }
+
+    // Symptom-specific recommendations
+    const severeSymptoms = analyticsData.symptom_correlations.filter(s => s.sentiment_impact < -0.3);
+    if (severeSymptoms.length > 0) {
+      recommendations.push(`Address high-impact symptoms: ${severeSymptoms.map(s => s.symptom.replace('_', ' ')).join(', ')}`);
+    }
+
+    // Support system recommendations
+    if (analyticsData.supportSystemStrength === 'low') {
+      recommendations.push('Consider referral to support groups or family counseling');
+    }
+
+    // Treatment engagement
+    if (analyticsData.treatmentMentions === 0) {
+      recommendations.push('Discuss treatment options and patient education resources');
+    } else if (analyticsData.treatmentMentions > 5) {
+      recommendations.push('Patient actively engaged in treatment - monitor effectiveness');
+    }
+
+    // Consistency recommendations
+    if (analyticsData.consistencyScore < 3) {
+      recommendations.push('Encourage more regular journaling for better symptom tracking');
+    }
+
+    // Risk-based recommendations
+    if (analyticsData.riskAssessment.level === 'high') {
+      recommendations.push('URGENT: Consider immediate mental health evaluation');
+      recommendations.push('Implement safety planning and increased monitoring');
+    } else if (analyticsData.riskAssessment.level === 'medium') {
+      recommendations.push('Monitor mood closely and consider preventive interventions');
+    }
+
+    // Follow-up
+    recommendations.push('Schedule follow-up appointment in 4-6 weeks');
+
+    return recommendations;
+  }
+
+  /**
+   * Create PDF report data from user information and analytics
+   */
+  static createReportData(
+    userInfo: { name: string; email: string; userId: string },
+    journalEntries: JournalEntry[],
+    analyticsData: AnalyticsData,
+    reportPeriod: string = 'Last 30 days'
+  ): PDFReportData {
+    const summary = this.generateSummary(journalEntries, analyticsData);
+
+    return {
+      patientInfo: {
+        name: userInfo.name,
+        email: userInfo.email,
+        userId: userInfo.userId,
+        reportDate: new Date(),
+        reportPeriod
+      },
+      journalEntries,
+      analyticsData,
+      summary
+    };
+  }
+
+  /**
+   * Generate and download healthcare report for premium users
+   */
+  static async generateAndDownloadReport(
+    userInfo: { name: string; email: string; userId: string },
+    journalEntries: JournalEntry[],
+    analyticsData: AnalyticsData,
+    reportPeriod: string = 'Last 30 days'
+  ): Promise<void> {
+    const reportData = this.createReportData(userInfo, journalEntries, analyticsData, reportPeriod);
+    await this.downloadReport(reportData);
+  }
+
+  /**
+   * Generate and print healthcare report for premium users
+   */
+  static async generateAndPrintReport(
+    userInfo: { name: string; email: string; userId: string },
+    journalEntries: JournalEntry[],
+    analyticsData: AnalyticsData,
+    reportPeriod: string = 'Last 30 days'
+  ): Promise<void> {
+    const reportData = this.createReportData(userInfo, journalEntries, analyticsData, reportPeriod);
+    await this.printReport(reportData);
   }
 }

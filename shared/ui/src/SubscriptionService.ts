@@ -129,7 +129,7 @@ export class SubscriptionService {
    */
   static async getUserSubscription(userId: string, db: any): Promise<UserSubscription> {
     try {
-      const subscriptionRef = doc(db, 'user_subscriptions', userId);
+      const subscriptionRef = doc(db, 'subscriptions', userId);
       const subscriptionDoc = await getDoc(subscriptionRef);
 
       if (subscriptionDoc.exists()) {

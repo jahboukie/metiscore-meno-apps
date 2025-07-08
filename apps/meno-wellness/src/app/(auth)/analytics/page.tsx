@@ -14,7 +14,8 @@ import {
   SimpleLineChart,
   EmotionDistribution,
   SymptomImpactChart,
-  WellnessScoreGauge
+  WellnessScoreGauge,
+  PDFReportService
 } from '@metiscore/ui';
 
 export default function AnalyticsPage() {
@@ -74,15 +75,63 @@ export default function AnalyticsPage() {
 
 
   const generatePDFReport = async () => {
-    if (!analyticsData || !user) return;
+    if (!analyticsData || !user || !subscription) return;
+
+    // Check if user has premium access
+    if (!SubscriptionService.canAccessPremiumAnalytics(subscription)) {
+      alert('PDF reports are a premium feature. Please upgrade your subscription to access this functionality.');
+      return;
+    }
 
     try {
-      // TODO: Implement actual PDF generation service
-      console.log('Generating PDF report with data:', analyticsData);
-      alert('PDF generation feature is coming soon. This will create a comprehensive report for healthcare providers.');
+      const userInfo = {
+        name: user.displayName || user.email || 'MenoWellness User',
+        email: user.email || '',
+        userId: user.uid
+      };
+
+      await PDFReportService.generateAndDownloadReport(
+        userInfo,
+        journalEntries,
+        analyticsData,
+        'Last 30 days'
+      );
+
+      // Track usage for analytics
+      console.log('PDF report generated successfully for user:', user.uid);
+
     } catch (error) {
       console.error('Error generating PDF report:', error);
-      alert('Error generating report. Please try again.');
+      alert('Error generating report. Please try again or contact support.');
+    }
+  };
+
+  const printPDFReport = async () => {
+    if (!analyticsData || !user || !subscription) return;
+
+    // Check if user has premium access
+    if (!SubscriptionService.canAccessPremiumAnalytics(subscription)) {
+      alert('PDF reports are a premium feature. Please upgrade your subscription to access this functionality.');
+      return;
+    }
+
+    try {
+      const userInfo = {
+        name: user.displayName || user.email || 'MenoWellness User',
+        email: user.email || '',
+        userId: user.uid
+      };
+
+      await PDFReportService.generateAndPrintReport(
+        userInfo,
+        journalEntries,
+        analyticsData,
+        'Last 30 days'
+      );
+
+    } catch (error) {
+      console.error('Error printing PDF report:', error);
+      alert('Error printing report. Please try again or contact support.');
     }
   };
 
@@ -213,6 +262,49 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Premium Export Buttons */}
+        {subscription && SubscriptionService.canAccessPremiumAnalytics(subscription) && analyticsData && (
+          <div className="flex justify-end mb-6 space-x-3">
+            <button
+              type="button"
+              onClick={printPDFReport}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
+            >
+              <span>🖨️</span>
+              <span>Print Report</span>
+            </button>
+            <button
+              type="button"
+              onClick={generatePDFReport}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <span>📄</span>
+              <span>Share with Doctor (PDF)</span>
+            </button>
+          </div>
+        )}
+
+        {/* Premium Feature Teaser for Non-Premium Users */}
+        {subscription && !SubscriptionService.canAccessPremiumAnalytics(subscription) && analyticsData && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="text-blue-600 text-2xl">📄</div>
+                <div>
+                  <h3 className="font-semibold text-blue-900">Healthcare Provider Reports</h3>
+                  <p className="text-blue-700 text-sm">Generate comprehensive PDF reports to share with your doctor</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                Upgrade to Premium
+              </button>
+            </div>
           </div>
         )}
 
