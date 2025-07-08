@@ -1,12 +1,9 @@
-// packages/apps/partner-support/src/lib/firebase.ts
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
-// IMPORTANT: Use the same Firebase config as your meno-wellness app
-// These environment variables should be defined in a .env.local file
-// located in the root of the 'partner-support' application (packages/apps/partner-support/.env.local).
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -16,18 +13,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Define a unique name for this Firebase app instance within the monorepo.
-// This prevents re-initialization errors if Firebase is initialized elsewhere.
-const appName = "partner-support";
+// Initialize Firebase for SSR and SSG, prevent re-initialization on client
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firebase.
-// It checks if an app with the given name already exists to prevent duplicate initialization.
-const app = getApps().find((existingApp: { name: string; }) => existingApp.name === appName) || initializeApp(firebaseConfig, appName);
-
-// Get the authentication, Firestore, and Functions service instances from the initialized app.
+// Export the initialized services
 const auth = getAuth(app);
 const db = getFirestore(app);
-const functions = getFunctions(app, 'us-central1');
+const functions = getFunctions(app, 'us-central1'); // Specify the region
 
-// Export the initialized app, auth, db, and functions instances for use throughout the application.
 export { app, auth, db, functions };

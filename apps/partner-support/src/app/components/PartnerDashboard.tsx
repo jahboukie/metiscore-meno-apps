@@ -3,8 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { db, functions } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
+import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { Button } from '@metiscore/ui';
 import { useAuth } from './auth-provider';
@@ -42,7 +41,7 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
     setConnectionError('');
     try {
       const acceptPartnerInvite = httpsCallable(functions, 'acceptPartnerInvite');
-      const result: any = await acceptPartnerInvite({ inviteCode: connectionCode });
+      const result = await acceptPartnerInvite({ inviteCode: connectionCode }) as { data: { success: boolean; primaryUserId?: string; message?: string } };
 
       if (result.data.success && result.data.primaryUserId) {
         setConnectedPartner(result.data.primaryUserId);
@@ -50,8 +49,9 @@ export const PartnerDashboard = ({ primaryUserId }: PartnerDashboardProps) => {
       } else {
         throw new Error(result.data.message || 'Connection failed.');
       }
-    } catch (err: any) {
-      setConnectionError(err.message || 'Failed to connect. Please check the code.');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to connect. Please check the code.';
+      setConnectionError(errorMessage);
     } finally {
       setIsConnecting(false);
     }

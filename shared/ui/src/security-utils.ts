@@ -1,6 +1,15 @@
 // Security utilities for client-side encryption and compliance
 import { UserConsent, AuditLog, EncryptedData } from '@metiscore/types';
 
+// Interface for stored key data
+interface StoredKeyData {
+  userId: string;
+  key: ArrayBuffer;
+  createdAt: Date;
+  algorithm: string;
+  version?: number;
+}
+
 // Client-side encryption utilities
 export class SecurityUtils {
   private static readonly ENCRYPTION_KEY_SIZE = 32; // 256 bits
@@ -21,6 +30,12 @@ export class SecurityUtils {
 
   // Store encryption key securely in IndexedDB
   static async storeKey(userId: string, key: CryptoKey): Promise<void> {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
+      console.warn('IndexedDB not available - key storage skipped');
+      return;
+    }
+
     try {
       const db = await this.openKeyStore();
       const transaction = db.transaction(['keys'], 'readwrite');
@@ -45,12 +60,12 @@ export class SecurityUtils {
       const db = await this.openKeyStore();
       const transaction = db.transaction(['keys'], 'readonly');
       const store = transaction.objectStore('keys');
-      
-      const result = await store.get(userId);
+
+      const result = await store.get(userId) as unknown as StoredKeyData | undefined;
       if (!result) return null;
 
       // Convert ArrayBuffer to Uint8Array if needed
-      const keyData = result.key instanceof ArrayBuffer 
+      const keyData = result.key instanceof ArrayBuffer
         ? new Uint8Array(result.key)
         : result.key;
 
@@ -126,17 +141,17 @@ export class SecurityUtils {
       const rotationStore = transaction.objectStore('keyRotations');
       
       // Get current key
-      const currentKeyData = await keyStore.get(userId);
+      const currentKeyData = await keyStore.get(userId) as unknown as StoredKeyData | undefined;
       if (!currentKeyData) {
         throw new Error('No current key found for rotation');
       }
-      
+
       // Generate new key
       const newKey = await this.generateKey();
       const exportedNewKey = await crypto.subtle.exportKey('raw', newKey);
-      
+
       // Convert ArrayBuffer to Uint8Array if needed
-      const keyData = currentKeyData.key instanceof ArrayBuffer 
+      const keyData = currentKeyData.key instanceof ArrayBuffer
         ? new Uint8Array(currentKeyData.key)
         : currentKeyData.key;
 

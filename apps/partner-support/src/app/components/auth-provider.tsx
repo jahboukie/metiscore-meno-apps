@@ -21,7 +21,7 @@ interface AuthContextType {
   setConnectedPartner: (partnerId: string) => void;
   updateConsent: (consent: UserConsent) => Promise<void>;
   withdrawConsent: () => Promise<void>;
-  logAction: (action: string, resourceId?: string, details?: any) => Promise<void>;
+  logAction: (action: string, resourceId?: string, details?: Record<string, unknown>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,10 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logAction = async (action: string, resourceId?: string, details?: any) => {
+  const logAction = async (action: string, resourceId?: string, details?: Record<string, unknown>) => {
     if (!user) return;
     try {
-      const auditLogData: any = {
+      const auditLogData: Record<string, unknown> = {
         userId: user.uid, action, timestamp: serverTimestamp(),
         ipAddress: 'unknown', userAgent: navigator.userAgent
       };

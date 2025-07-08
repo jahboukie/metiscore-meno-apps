@@ -199,6 +199,100 @@ export const acceptPartnerInvite = onCall(async (request) => {
 // --- Helper functions and other exports ---
 // This section should be filled in with the complete implementations from the previous step
 
+export const exportUserData = onCall(async (request) => {
+  const { auth: userAuth } = request;
+  if (!userAuth) throw new HttpsError('unauthenticated', 'User must be authenticated');
+
+  const userId = userAuth.uid;
+
+  try {
+    // Collect user data from all collections
+    const userData: any = {};
+    const collections = ['users', 'journal_entries', 'user_consents', 'audit_logs', 'data_retention'];
+    let totalRecords = 0;
+
+    // Get user profile
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      userData.user_data = userDoc.data();
+      totalRecords++;
+    }
+
+    // Get journal entries
+    const journalSnapshot = await db.collection('journal_entries')
+      .where('userId', '==', userId)
+      .get();
+    userData.journal_entries = journalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    totalRecords += journalSnapshot.size;
+
+    // Get user consents
+    const consentDoc = await db.collection('user_consents').doc(userId).get();
+    if (consentDoc.exists) {
+      userData.user_consents = consentDoc.data();
+      totalRecords++;
+    }
+
+    // Get audit logs
+    const auditSnapshot = await db.collection('audit_logs')
+      .where('userId', '==', userId)
+      .get();
+    userData.audit_logs = auditSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    totalRecords += auditSnapshot.size;
+
+    // Log the export action
+    await logAuditAction(userId, 'data_exported', userId, 'user_data', {
+      collections: collections.length,
+      totalRecords
+    });
+
+    return {
+      export_info: {
+        userId,
+        exportedAt: new Date().toISOString(),
+        collections,
+        totalRecords
+      },
+      ...userData
+    };
+
+  } catch (error) {
+    logger.error('Data export failed:', error);
+    throw new HttpsError('internal', 'Data export failed');
+  }
+});
+
+export const requestAccountDeletion = onCall(async (request) => {
+  const { auth: userAuth } = request;
+  if (!userAuth) throw new HttpsError('unauthenticated', 'User must be authenticated');
+
+  const userId = userAuth.uid;
+
+  try {
+    // Create deletion request
+    const deletionRequest = {
+      userId,
+      requestedAt: FieldValue.serverTimestamp(),
+      status: 'pending',
+      reason: 'User requested account deletion',
+      ipAddress: '0.0.0.0', // Would be populated from request in production
+      userAgent: 'Unknown'
+    };
+
+    const docRef = await db.collection('deletion_requests').add(deletionRequest);
+
+    // Log the deletion request
+    await logAuditAction(userId, 'deletion_requested', userId, 'user_account', {
+      requestId: docRef.id
+    });
+
+    return { requestId: docRef.id, message: 'Deletion request created successfully' };
+
+  } catch (error) {
+    logger.error('Deletion request failed:', error);
+    throw new HttpsError('internal', 'Deletion request failed');
+  }
+});
+
 export const anonymizeUserData = onCall(async (request) => {
   const { auth: userAuth } = request;
   if (!userAuth) throw new HttpsError('unauthenticated', 'User must be authenticated');

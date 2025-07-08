@@ -30,10 +30,14 @@ export default function JournalPage() {
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const entries = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      })) as JournalEntry[];
+      const entries = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // Convert Timestamp to Date
+        } as JournalEntry;
+      });
       setJournalEntries(entries);
     }, (error) => {
       console.error("Journal query failed:", error);
@@ -45,11 +49,20 @@ export default function JournalPage() {
   // Save new journal entry with encryption
   const handleSaveEntry = async (text: string, isShared: boolean, encryptedText?: EncryptedData) => {
     if (!user || !text.trim()) return;
-    
+
     setIsSaving(true);
-    
+
     try {
-      const entryData: any = {
+      const entryData: {
+        userId: string;
+        text: string;
+        isShared: boolean;
+        isEncrypted: boolean;
+        createdAt: ReturnType<typeof serverTimestamp>;
+        appOrigin: string;
+        analysis: Record<string, unknown>;
+        encryptedText?: EncryptedData;
+      } = {
         userId: user.uid,
         text: encryptedText ? '[ENCRYPTED]' : text.trim(), // Store placeholder if encrypted
         isShared,

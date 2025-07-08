@@ -172,7 +172,7 @@ export const categories = [
 ];
 
 export const searchFAQs = (query: string, category: string = 'all'): FAQItem[] => {
-  let filteredFAQs = category === 'all' ? faqData : faqData.filter(faq => faq.category === category);
+  const filteredFAQs = category === 'all' ? faqData : faqData.filter(faq => faq.category === category);
   
   if (query.trim() === '') {
     return filteredFAQs;

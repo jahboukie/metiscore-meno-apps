@@ -6,8 +6,8 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
-import { JournalEntry, ConsentManager, DataMinimization, ComplianceUtils, Button } from "@metiscore/ui";
-import { SentimentAnalysisResponse, UserConsent } from '@metiscore/types';
+import { ConsentManager, Button } from "@metiscore/ui";
+import { JournalEntry, UserConsent } from '@metiscore/types';
 
 // Mood options for the hero section
 const MOOD_OPTIONS = [
@@ -23,10 +23,6 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<SentimentAnalysisResponse | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   // Security and compliance state
   const [userConsent, setUserConsent] = useState<UserConsent | null>(null);
   const [showConsentManager, setShowConsentManager] = useState(false);
@@ -48,7 +44,7 @@ export default function DashboardPage() {
   
   // Partner connection state
   const [hasPartner, setHasPartner] = useState<boolean>(false);
-  const [partnerName, setPartnerName] = useState<string>('Alex'); // Mock partner name
+  const [partnerName] = useState<string>('Alex'); // Mock partner name
   const [showInviteForm, setShowInviteForm] = useState<boolean>(false);
 
   // Load user consent on component mount
@@ -125,7 +121,7 @@ export default function DashboardPage() {
   };
 
   // Audit logging function
-  const logUserAction = async (action: string, resourceId?: string, details?: any) => {
+  const logUserAction = async (action: string, resourceId?: string, details?: Record<string, unknown>) => {
     if (!user) return;
     
     try {
@@ -140,7 +136,7 @@ export default function DashboardPage() {
       };
 
       // Only add resourceId and resourceType if they are defined
-      const auditLog: any = { ...auditLogBase };
+      const auditLog: Record<string, unknown> = { ...auditLogBase };
       if (resourceId !== undefined) {
         auditLog.resourceId = resourceId;
       }
@@ -151,7 +147,7 @@ export default function DashboardPage() {
       await addDoc(collection(db, 'audit_logs'), auditLog);
     } catch (error) {
       console.error('Error logging action:', error);
-      // Don't throw - audit logging should not break functionality
+      // Don&apos;t throw - audit logging should not break functionality
     }
   };
 
@@ -163,7 +159,14 @@ export default function DashboardPage() {
     }
     const q = query(collection(db, 'journal_entries'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as JournalEntry[];
+      const entries = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // Convert Timestamp to Date
+        } as JournalEntry;
+      });
       setJournalEntries(entries);
     }, (error) => {
       console.error("MenoWellness query failed:", error); // Log the specific error
@@ -171,110 +174,11 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // ENHANCED SAVE LOGIC WITH SECURITY AND COMPLIANCE
-  const handleSaveEntry = async (text: string, isShared: boolean) => {
-    if (!text.trim() || !user) return;
-    
-    // Check consent before saving
-    if (!userConsent?.dataProcessing) {
-      console.error('Cannot save entry: No data processing consent');
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      // Data minimization and sanitization
-      const sanitizedText = ComplianceUtils.validateConsentRequirements(
-        userConsent,
-        ['dataProcessing']
-      ) ? text : '[CONSENT_REQUIRED]';
-      
-      // Create journal entry with compliance metadata
-      const journalData = DataMinimization.sanitizeJournalData({
-        userId: user.uid,
-        text: sanitizedText,
-        isShared: isShared,
-        createdAt: serverTimestamp(),
-        appOrigin: 'MenoWellness',
-        analysis: {}, // Will be populated by sentiment analysis
-      });
 
-      const docRef = await addDoc(collection(db, 'journal_entries'), journalData);
-      
-      // Log the action for audit trail
-      await logUserAction('journal_entry_created', docRef.id, {
-        isShared,
-        textLength: text.length,
-        hasConsent: userConsent.dataProcessing,
-      });
-      
-    } catch (err) {
-      console.error("Failed to save entry:", err);
-      await logUserAction('journal_entry_create_failed', undefined, {
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
-  const handleAnalyzeRequest = async (text: string) => {
-    // Check consent for sentiment analysis
-    if (!userConsent?.sentimentAnalysis) {
-      setAnalysisError("Sentiment analysis consent required. Please update your consent preferences.");
-      return;
-    }
-    
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    setAnalysisError(null);
-    
-    const analysisApiUrl = process.env.NEXT_PUBLIC_SENTIMENT_API_URL;
-    if (!analysisApiUrl) {
-      setAnalysisError("The analysis service is not configured correctly.");
-      setIsAnalyzing(false);
-      return;
-    }
-    
-    try {
-      // Log analysis request for audit trail
-      await logUserAction('sentiment_analysis_requested', undefined, {
-        textLength: text.length,
-        hasConsent: userConsent.sentimentAnalysis,
-      });
-      
-      const response = await fetch(analysisApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, focus: "Menopause Analysis" }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'API call failed');
-      }
-      
-      const result: SentimentAnalysisResponse = await response.json();
-      setAnalysisResult(result);
-      
-      // Log successful analysis
-      await logUserAction('sentiment_analysis_completed', undefined, {
-        hasResult: !!result,
-        riskLevel: result.crisisAssessment?.risk_level,
-      });
-      
-    } catch (e: any) {
-      const errorMessage = e.message || "An unexpected error occurred.";
-      setAnalysisError(errorMessage);
-      
-      // Log analysis failure
-      await logUserAction('sentiment_analysis_failed', undefined, {
-        error: errorMessage,
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+
+
+
 
   if (!user) return <div className="text-center text-white p-10">Redirecting...</div>;
 
@@ -328,7 +232,7 @@ export default function DashboardPage() {
       // Find mood entry for this day
       const dayEntry = journalEntries.find(entry => {
         if (!entry.createdAt) return false;
-        const entryDate = new Date(entry.createdAt.seconds * 1000);
+        const entryDate = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt);
         return entryDate.toDateString() === dateStr;
       });
       
@@ -377,13 +281,13 @@ export default function DashboardPage() {
       .slice(0, 2)
       .map(entry => ({
         ...entry,
-        dayName: entry.createdAt ? 
+        dayName: entry.createdAt ?
           (() => {
-            const entryDate = new Date(entry.createdAt.seconds * 1000);
+            const entryDate = entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt);
             const today = new Date();
             const yesterday = new Date(today);
             yesterday.setDate(today.getDate() - 1);
-            
+
             if (entryDate.toDateString() === today.toDateString()) return 'Today';
             if (entryDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
             return entryDate.toLocaleDateString('en-US', { weekday: 'long' });
@@ -510,7 +414,7 @@ export default function DashboardPage() {
                     <div>
                       <span className="text-base font-medium text-purple-800">Share with partner</span>
                       <p className="text-sm text-purple-600 mt-1">
-                        Let your partner know how you're feeling today 💕
+                        Let your partner know how you&apos;re feeling today 💕
                       </p>
                     </div>
                   </label>
@@ -645,10 +549,10 @@ export default function DashboardPage() {
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-2">
                               <h4 className="font-semibold text-gray-800">
-                                {selectedDayEntry.createdAt && 
-                                  new Date(selectedDayEntry.createdAt.seconds * 1000).toLocaleDateString('en-US', {
+                                {selectedDayEntry.createdAt &&
+                                  selectedDayEntry.createdAt.toLocaleDateString('en-US', {
                                     weekday: 'long',
-                                    month: 'long', 
+                                    month: 'long',
                                     day: 'numeric'
                                   })
                                 }

@@ -46,7 +46,7 @@ export const AnalysisReport = ({ response }: { response: AnalysisResponse }) => 
         )}
         {richResponse.crisisAssessment && (
            <InfoCard title="Safety Assessment" className="bg-yellow-50 border-yellow-200">
-              <p>Risk Level: <span className="font-bold capitalize">{richResponse.crisisAssessment.riskLevel}</span></p>
+              <p>Risk Level: <span className="font-bold capitalize">{richResponse.crisisAssessment.risk_level}</span></p>
            </InfoCard>
         )}
       </div>

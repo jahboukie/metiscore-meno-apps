@@ -103,6 +103,7 @@ export default function MoodLoggingPage() {
             </h1>
           </div>
           <button
+            type="button"
             onClick={() => router.push('/dashboard')}
             className="p-3 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 transition-colors border border-white/20"
             aria-label="Back to dashboard"
@@ -128,7 +129,7 @@ export default function MoodLoggingPage() {
                   <span className="ml-2 animate-pulse">✨</span>
                 </p>
                 <p className="text-green-700 text-base leading-relaxed">
-                  Thank you for taking care of yourself today. You're doing great! 💕
+                  Thank you for taking care of yourself today. You&apos;re doing great! 💕
                 </p>
                 {isShared && (
                   <p className="text-purple-600 text-sm bg-white/60 rounded-lg py-2 px-3 mt-3">
@@ -149,6 +150,7 @@ export default function MoodLoggingPage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-8">
             {MOOD_OPTIONS.map((mood) => (
               <button
+                type="button"
                 key={mood.value}
                 onClick={() => handleMoodSelect(mood.value)}
                 className={`

@@ -5,24 +5,24 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../components/auth-provider';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc } from 'firebase/firestore';
 import { Button } from '@metiscore/ui';
 
 interface SharedJournalEntry {
   id: string;
   text: string;
-  createdAt: Timestamp;
+  createdAt: Date;
   mood?: string;
 }
 
 interface PartnerInfo {
   displayName: string;
   email: string;
-  lastActiveAt: Timestamp;
+  lastActiveAt?: Date;
 }
 
 export default function PremiumPage() {
-  const { user, appUser, userConsent, hasValidConsent, loading: authLoading } = useAuth();
+  const { user, appUser, hasValidConsent, loading: authLoading } = useAuth();
   const router = useRouter();
   
   const [partnerInfo, setPartnerInfo] = useState<PartnerInfo | null>(null);
@@ -44,11 +44,16 @@ export default function PremiumPage() {
         try {
           const primaryUserDoc = await getDoc(doc(db, 'users', primaryUserId));
           if (primaryUserDoc.exists()) {
-            setPartnerInfo(primaryUserDoc.data() as PartnerInfo);
+            const data = primaryUserDoc.data();
+            const processedPartnerInfo = {
+              ...data,
+              lastActiveAt: data.lastActiveAt ? data.lastActiveAt.toDate() : undefined, // Convert Timestamp to Date
+            } as PartnerInfo;
+            setPartnerInfo(processedPartnerInfo);
           } else {
             setError("Could not find your partner's information.");
           }
-        } catch (err) {
+        } catch {
           setError("Failed to load partner information.");
         }
         setIsLoading(false);
@@ -76,15 +81,24 @@ export default function PremiumPage() {
       orderBy('createdAt', 'desc')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setSharedEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SharedJournalEntry)));
-    }, (err) => {
+      const entries = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // Convert Timestamp to Date
+        } as SharedJournalEntry;
+      });
+      setSharedEntries(entries);
+    }, () => {
       setError("Could not load shared entries. Check permissions.");
     });
     return () => unsubscribe();
   }, [primaryUserId, hasValidConsent]);
   
-  const formatDate = (timestamp: Timestamp) => {
-    return timestamp ? new Date(timestamp.seconds * 1000).toLocaleString() : 'N/A';
+  const formatDate = (date?: Date) => {
+    if (!date) return 'N/A';
+    return date.toLocaleString();
   };
 
   if (authLoading || isLoading) {
@@ -147,7 +161,7 @@ export default function PremiumPage() {
             <div className="bg-white rounded-xl shadow-lg">
                 <div className="p-6 border-b">
                     <h2 className="text-xl font-semibold text-gray-900">Shared Journal Entries</h2>
-                    <p className="text-sm text-gray-500 mt-1">Insights from your partner's wellness journey.</p>
+                    <p className="text-sm text-gray-500 mt-1">Insights from your partner&apos;s wellness journey.</p>
                 </div>
 
                 <div className="p-6">

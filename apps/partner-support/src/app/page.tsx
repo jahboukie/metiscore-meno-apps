@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './components/auth-provider';
 import { AuthButton } from './components/auth-button';
-import { Button } from '@metiscore/ui';
 
 export default function HomePage() {
   const { user, loading } = useAuth();

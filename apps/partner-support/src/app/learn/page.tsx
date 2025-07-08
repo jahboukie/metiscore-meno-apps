@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../components/auth-provider';
 import { useRouter } from 'next/navigation';
 import { Button } from '@metiscore/ui';
@@ -66,7 +66,7 @@ const contentSections: ContentSection[] = [
 ];
 
 export default function LearnPage() {
-  const { user, loading, hasValidConsent, logAction } = useAuth();
+  const { user, loading, logAction } = useAuth();
   const router = useRouter();
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
 
@@ -127,7 +127,7 @@ export default function LearnPage() {
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">What you'll learn:</h4>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">What you&apos;ll learn:</h4>
                 <ul className="space-y-1">
                   {section.topics.map((topic, index) => (
                     <li key={index} className="flex items-start text-sm text-gray-600">

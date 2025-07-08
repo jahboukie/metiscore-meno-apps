@@ -6,17 +6,11 @@ import { Button } from './Button';
 import { SecurityUtils } from './security-utils';
 import { EncryptedData } from '@metiscore/types';
 
-export interface JournalEntry {
-  id: string;
-  text: string;
-  encryptedText?: EncryptedData;
-  createdAt: { toDate: () => Date } | null;
-  isShared: boolean;
-  isEncrypted?: boolean;
-}
+// Remove local interface and use the one from @metiscore/types
+import { JournalEntry as JournalEntryType } from '@metiscore/types';
 
 interface JournalProps {
-  entries: JournalEntry[];
+  entries: JournalEntryType[];
   isSaving: boolean;
   userId: string;
   onSaveEntry: (text: string, isShared: boolean, encryptedText?: EncryptedData) => Promise<void>;
@@ -35,7 +29,7 @@ export const Journal = ({
   const [newEntryText, setNewEntryText] = useState('');
   const [isShared, setIsShared] = useState(false);
   const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
-  const [decryptedEntries, setDecryptedEntries] = useState<JournalEntry[]>([]);
+  const [decryptedEntries, setDecryptedEntries] = useState<JournalEntryType[]>([]);
   const [isDecrypting, setIsDecrypting] = useState(false);
 
   // Initialize encryption key
@@ -72,7 +66,7 @@ export const Journal = ({
   }, [entries, encryptionKey, enableEncryption]);
 
   // Decrypt journal entries
-  const decryptEntries = async (entries: JournalEntry[], key: CryptoKey): Promise<JournalEntry[]> => {
+  const decryptEntries = async (entries: JournalEntryType[], key: CryptoKey): Promise<JournalEntryType[]> => {
     const decryptedEntries = await Promise.all(
       entries.map(async (entry) => {
         if (entry.isEncrypted && entry.encryptedText) {
@@ -171,7 +165,7 @@ export const Journal = ({
             <p className="text-slate-800 whitespace-pre-wrap">{entry.text}</p>
             <div className="flex justify-between items-center mt-3">
               <p className="text-xs text-slate-500">
-                {entry.createdAt ? entry.createdAt.toDate().toLocaleString() : 'Just now'}
+                {entry.createdAt ? entry.createdAt.toLocaleString() : 'Just now'}
               </p>
               <div className="flex items-center space-x-2">
                 {entry.isEncrypted && enableEncryption && (

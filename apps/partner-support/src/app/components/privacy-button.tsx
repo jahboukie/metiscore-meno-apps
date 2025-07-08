@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from './auth-provider';
 import { ConsentManager } from '@metiscore/ui';
 import { Button } from '@metiscore/ui';
+import { UserConsent } from '@metiscore/types';
 
 export function PrivacyButton() {
   const { user, userConsent, hasValidConsent, updateConsent } = useAuth();
@@ -13,7 +14,7 @@ export function PrivacyButton() {
     return null;
   }
 
-  const handleConsentUpdate = async (consent: any) => {
+  const handleConsentUpdate = async (consent: UserConsent) => {
     await updateConsent(consent);
     setShowPrivacyModal(false);
   };

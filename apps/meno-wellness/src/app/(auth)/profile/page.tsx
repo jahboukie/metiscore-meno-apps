@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../components/auth-provider';
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { Button, UserDataManager, KeyManager } from '@metiscore/ui';
 import { UserConsent } from '@metiscore/types';
-import { ComplianceUtils } from '@metiscore/ui';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -453,7 +452,7 @@ export default function ProfilePage() {
             onKeyRotated={() => {
               console.log('Encryption key rotated');
             }}
-            onBackupCreated={(backup) => {
+            onBackupCreated={() => {
               console.log('Key backup created');
             }}
             onKeyRestored={() => {
@@ -477,8 +476,9 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <UserDataManager 
+          <UserDataManager
             userId={user.uid}
+            functions={functions}
             onExportComplete={(exportData) => {
               console.log('Data export completed:', exportData.export_info);
             }}
