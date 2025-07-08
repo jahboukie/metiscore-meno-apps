@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../components/auth-provider';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy, doc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { Journal } from '@metiscore/ui';
-import { JournalEntry, EncryptedData } from '@metiscore/types';
+import { Journal, SentimentAnalysisService } from '@metiscore/ui';
+import { JournalEntry, EncryptedData, UserConsent } from '@metiscore/types';
 
 export default function JournalPage() {
   const { user } = useAuth();
@@ -46,13 +46,35 @@ export default function JournalPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // Save new journal entry with encryption
+  // Save new journal entry with encryption and sentiment analysis
   const handleSaveEntry = async (text: string, isShared: boolean, encryptedText?: EncryptedData) => {
     if (!user || !text.trim()) return;
 
     setIsSaving(true);
 
     try {
+      // Check if user has consented to sentiment analysis
+      const consentDoc = await getDoc(doc(db, 'user_consents', user.uid));
+      const userConsent = consentDoc.exists() ? consentDoc.data() as UserConsent : null;
+      const hasSentimentConsent = userConsent?.sentimentAnalysis === true;
+
+      let analysis: Record<string, unknown> = {};
+
+      // Perform sentiment analysis if user has consented and text is not encrypted
+      if (hasSentimentConsent && !encryptedText && text.trim().length > 10) {
+        try {
+          const sentimentResult = await SentimentAnalysisService.analyzeSentiment({
+            text: text.trim(),
+            userId: user.uid,
+            context: 'menopause',
+            includePartnerInsights: false
+          });
+          analysis = sentimentResult;
+        } catch (error) {
+          console.warn('Sentiment analysis failed, continuing without analysis:', error);
+        }
+      }
+
       const entryData: {
         userId: string;
         text: string;
@@ -69,7 +91,7 @@ export default function JournalPage() {
         isEncrypted: !!encryptedText,
         createdAt: serverTimestamp(),
         appOrigin: 'meno-wellness',
-        analysis: {}
+        analysis
       };
 
       // Add encrypted text if encryption is enabled
@@ -78,7 +100,7 @@ export default function JournalPage() {
       }
 
       await addDoc(collection(db, 'journal_entries'), entryData);
-      
+
     } catch (error) {
       console.error('Error saving journal entry:', error);
     } finally {

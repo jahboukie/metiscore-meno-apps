@@ -603,12 +603,23 @@ export default function DashboardPage() {
                 <p className="text-gray-600 mb-6">
                   Take a moment to write about your day, your thoughts, or anything on your mind.
                 </p>
-                <Button
-                  onClick={() => router.push('/dashboard/journal')}
-                  className="w-full sm:w-auto bg-green-400 hover:bg-green-500 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-300 hover:scale-105"
-                >
-                  ✍️ Open Journal
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => router.push('/dashboard/journal')}
+                    className="flex-1 bg-green-400 hover:bg-green-500 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-300 hover:scale-105"
+                  >
+                    ✍️ Open Journal
+                  </Button>
+                  <Button
+                    onClick={() => router.push('/analytics')}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white py-3 px-6 rounded-lg font-semibold transition-all duration-300 hover:scale-105 relative"
+                  >
+                    📊 Analytics
+                    <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs px-1.5 py-0.5 rounded-full font-bold">
+                      NEW
+                    </span>
+                  </Button>
+                </div>
               </div>
             </div>
             
