@@ -1,5 +1,6 @@
 // Security utilities for client-side encryption and compliance
 import { UserConsent, AuditLog, EncryptedData } from '@metiscore/types';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // Interface for stored key data
 interface StoredKeyData {
@@ -10,11 +11,67 @@ interface StoredKeyData {
   version?: number;
 }
 
+// Interface for KMS-protected key data
+interface KMSKeyData {
+  userId: string;
+  appType: 'meno-wellness' | 'partner-support';
+  dek: string; // Base64 encoded Data Encryption Key
+  keyVersion: string;
+  createdAt: Date;
+  isKMSProtected: true;
+}
+
+// Configuration for KMS integration
+interface KMSConfig {
+  enabled: boolean;
+  appType: 'meno-wellness' | 'partner-support';
+  hybridMode: boolean; // Support both KMS and local keys
+}
+
 // Client-side encryption utilities
 export class SecurityUtils {
   private static readonly ENCRYPTION_KEY_SIZE = 32; // 256 bits
   private static readonly IV_SIZE = 16; // 128 bits
   private static readonly KEY_STORAGE_PREFIX = 'meno_key_';
+  private static readonly KMS_KEY_STORAGE_PREFIX = 'kms_key_';
+
+  // Get KMS configuration from environment
+  private static getKMSConfig(): KMSConfig {
+    return {
+      enabled: process.env.NEXT_PUBLIC_KMS_ENABLED === 'true',
+      appType: (process.env.NEXT_PUBLIC_APP_TYPE as 'meno-wellness' | 'partner-support') || 'meno-wellness',
+      hybridMode: process.env.NEXT_PUBLIC_KMS_HYBRID_MODE === 'true',
+    };
+  }
+
+  // Check if KMS is available and enabled
+  static isKMSEnabled(): boolean {
+    const config = this.getKMSConfig();
+    return config.enabled && typeof window !== 'undefined';
+  }
+
+  // Get Firebase Functions instance for KMS operations
+  private static getFunctionsInstance() {
+    if (typeof window === 'undefined') {
+      throw new Error('Firebase Functions not available in server environment');
+    }
+
+    // This will be injected by the consuming app
+    // Apps should call SecurityUtils.setFirebaseApp(app) during initialization
+    if (!SecurityUtils.firebaseApp) {
+      throw new Error('Firebase app not initialized. Call SecurityUtils.setFirebaseApp(app) first.');
+    }
+
+    return getFunctions(SecurityUtils.firebaseApp, 'northamerica-northeast1');
+  }
+
+  // Firebase app instance (to be set by consuming applications)
+  private static firebaseApp: any = null;
+
+  // Set Firebase app instance (should be called by consuming applications)
+  static setFirebaseApp(app: any): void {
+    SecurityUtils.firebaseApp = app;
+  }
 
   // Generate a secure random key for field-level encryption
   static async generateKey(): Promise<CryptoKey> {
@@ -424,6 +481,226 @@ export class SecurityUtils {
     });
 
     return sanitized;
+  }
+
+  // ============================================================================
+  // KMS Integration Methods
+  // ============================================================================
+
+  /**
+   * Generate or retrieve a KMS-protected Data Encryption Key (DEK)
+   */
+  static async getKMSProtectedKey(userId: string): Promise<CryptoKey> {
+    const config = this.getKMSConfig();
+
+    if (!config.enabled) {
+      // Fallback to local key management
+      return this.getUserEncryptionKey(userId);
+    }
+
+    try {
+      // First try to get existing KMS key from local storage
+      const existingKey = await this.retrieveKMSKey(userId);
+      if (existingKey) {
+        return existingKey;
+      }
+
+      // Generate new KMS-protected key
+      return await this.generateKMSProtectedKey(userId);
+    } catch (error) {
+      console.error('KMS key retrieval failed, falling back to local key:', error);
+
+      if (config.hybridMode) {
+        return this.getUserEncryptionKey(userId);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a new KMS-protected Data Encryption Key
+   */
+  private static async generateKMSProtectedKey(userId: string): Promise<CryptoKey> {
+    const config = this.getKMSConfig();
+    const functions = this.getFunctionsInstance();
+    const generateDEK = httpsCallable(functions, 'generateUserDEK');
+
+    try {
+      const result = await generateDEK({ appType: config.appType });
+      const dekData = result.data as any;
+
+      // Convert base64 DEK to CryptoKey
+      const dekBuffer = new Uint8Array(atob(dekData.dek).split('').map(c => c.charCodeAt(0)));
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        dekBuffer,
+        { name: 'AES-GCM' },
+        true,
+        ['encrypt', 'decrypt']
+      );
+
+      // Store KMS key data locally for quick access
+      await this.storeKMSKey(userId, {
+        userId,
+        appType: config.appType,
+        dek: dekData.dek,
+        keyVersion: dekData.keyVersion,
+        createdAt: new Date(dekData.createdAt),
+        isKMSProtected: true,
+      });
+
+      return cryptoKey;
+    } catch (error) {
+      console.error('Failed to generate KMS-protected key:', error);
+      throw new Error('Failed to generate KMS-protected key');
+    }
+  }
+
+  /**
+   * Retrieve existing KMS-protected key from local storage
+   */
+  private static async retrieveKMSKey(userId: string): Promise<CryptoKey | null> {
+    try {
+      const kmsKeyData = await this.getStoredKMSKey(userId);
+      if (!kmsKeyData) return null;
+
+      // Convert base64 DEK to CryptoKey
+      const dekBuffer = new Uint8Array(atob(kmsKeyData.dek).split('').map(c => c.charCodeAt(0)));
+      return await crypto.subtle.importKey(
+        'raw',
+        dekBuffer,
+        { name: 'AES-GCM' },
+        true,
+        ['encrypt', 'decrypt']
+      );
+    } catch (error) {
+      console.error('Failed to retrieve KMS key from local storage:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Rotate KMS-protected key
+   */
+  static async rotateKMSProtectedKey(userId: string): Promise<CryptoKey> {
+    const config = this.getKMSConfig();
+
+    if (!config.enabled) {
+      return this.rotateUserKey(userId);
+    }
+
+    const functions = this.getFunctionsInstance();
+    const rotateDEK = httpsCallable(functions, 'rotateUserDEK');
+
+    try {
+      const result = await rotateDEK({ appType: config.appType });
+      const dekData = result.data as any;
+
+      // Convert base64 DEK to CryptoKey
+      const dekBuffer = new Uint8Array(atob(dekData.dek).split('').map(c => c.charCodeAt(0)));
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        dekBuffer,
+        { name: 'AES-GCM' },
+        true,
+        ['encrypt', 'decrypt']
+      );
+
+      // Update stored KMS key data
+      await this.storeKMSKey(userId, {
+        userId,
+        appType: config.appType,
+        dek: dekData.dek,
+        keyVersion: dekData.keyVersion,
+        createdAt: new Date(dekData.createdAt),
+        isKMSProtected: true,
+      });
+
+      return cryptoKey;
+    } catch (error) {
+      console.error('Failed to rotate KMS-protected key:', error);
+      throw new Error('Failed to rotate KMS-protected key');
+    }
+  }
+
+  /**
+   * Store KMS key data in local storage for quick access
+   */
+  private static async storeKMSKey(userId: string, kmsKeyData: KMSKeyData): Promise<void> {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('localStorage not available - KMS key storage skipped');
+      return;
+    }
+
+    try {
+      const storageKey = `${this.KMS_KEY_STORAGE_PREFIX}${userId}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        ...kmsKeyData,
+        createdAt: kmsKeyData.createdAt.toISOString(),
+      }));
+    } catch (error) {
+      console.error('Failed to store KMS key data:', error);
+    }
+  }
+
+  /**
+   * Get stored KMS key data from local storage
+   */
+  private static async getStoredKMSKey(userId: string): Promise<KMSKeyData | null> {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    try {
+      const storageKey = `${this.KMS_KEY_STORAGE_PREFIX}${userId}`;
+      const stored = localStorage.getItem(storageKey);
+
+      if (!stored) return null;
+
+      const parsed = JSON.parse(stored);
+      return {
+        ...parsed,
+        createdAt: new Date(parsed.createdAt),
+      };
+    } catch (error) {
+      console.error('Failed to retrieve stored KMS key data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Validate KMS access and connectivity
+   */
+  static async validateKMSAccess(): Promise<{
+    isValid: boolean;
+    details: any;
+    timestamp: Date;
+  }> {
+    const config = this.getKMSConfig();
+
+    if (!config.enabled) {
+      return {
+        isValid: false,
+        details: { error: 'KMS is not enabled' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      const functions = this.getFunctionsInstance();
+      const validateKMS = httpsCallable(functions, 'validateKMSAccess');
+
+      const result = await validateKMS({});
+      return result.data as any;
+    } catch (error) {
+      console.error('KMS validation failed:', error);
+      return {
+        isValid: false,
+        details: { error: error instanceof Error ? error.message : String(error) },
+        timestamp: new Date(),
+      };
+    }
   }
 }
 

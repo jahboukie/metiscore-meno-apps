@@ -10,7 +10,18 @@ export * from './KeyManager';
 export * from './DataProcessingAgreement';
 export * from './SentimentAnalysisService';
 export * from './PDFReportService';
-export * from './SubscriptionManager';
+// Export SubscriptionManager components and types with aliases to avoid conflicts
+export {
+  SubscriptionManager
+} from './SubscriptionManager';
+
+export type {
+  SubscriptionTier as SubscriptionManagerTier,
+  UserSubscription as SubscriptionManagerUserSubscription
+} from './SubscriptionManager';
+
 export * from './AnalyticsService';
+
+// Export SubscriptionService with original names (these are the main subscription types)
 export * from './SubscriptionService';
 export * from './SimpleChart';

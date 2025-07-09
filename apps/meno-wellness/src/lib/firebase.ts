@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
+import { SecurityUtils } from "@metiscore/ui";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,6 +16,11 @@ const firebaseConfig = {
 
 // Initialize Firebase for SSR and SSG, prevent re-initialization on client
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize SecurityUtils with Firebase app for KMS operations
+if (typeof window !== 'undefined') {
+  SecurityUtils.setFirebaseApp(app);
+}
 
 // Export the initialized services
 const auth = getAuth(app);

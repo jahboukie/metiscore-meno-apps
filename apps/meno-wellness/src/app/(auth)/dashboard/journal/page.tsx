@@ -69,7 +69,7 @@ export default function JournalPage() {
             context: 'menopause',
             includePartnerInsights: false
           });
-          analysis = sentimentResult;
+          analysis = sentimentResult as Record<string, unknown>;
         } catch (error) {
           console.warn('Sentiment analysis failed, continuing without analysis:', error);
         }

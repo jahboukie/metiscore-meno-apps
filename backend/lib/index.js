@@ -3,10 +3,13 @@ import { logger } from 'firebase-functions/v2';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { KMSService } from './kms-service';
 // Initialize Firebase Admin
 initializeApp();
 const db = getFirestore();
 const auth = getAuth();
+// Initialize KMS Service
+const kmsService = new KMSService();
 // CORS configuration for API calls
 const corsConfig = {
     cors: true,
@@ -438,3 +441,180 @@ function generateCohortId(date) {
     const month = date.getUTCMonth() + 1;
     return `cohort_${year}_${month}`;
 }
+// ============================================================================
+// KMS Cloud Functions
+// ============================================================================
+/**
+ * Generate a new Data Encryption Key (DEK) for a user
+ */
+export const generateUserDEK = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { appType } = request.data;
+    const userId = request.auth.uid;
+    if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
+        throw new HttpsError('invalid-argument', 'Valid appType is required');
+    }
+    try {
+        logger.info(`Generating DEK for user ${userId} in app ${appType}`);
+        const result = await kmsService.generateDEK(appType, userId);
+        // Store the encrypted DEK in Firestore for future use
+        await db.collection('user_encryption_keys').doc(`${userId}_${appType}`).set({
+            userId,
+            appType,
+            encryptedDEK: result.encryptedDEK,
+            keyVersion: result.keyVersion,
+            createdAt: result.createdAt,
+            isActive: true,
+        });
+        // Log the key generation
+        await logAuditAction(userId, 'DEK_GENERATED', `${userId}_${appType}`, 'encryption_key', { appType });
+        // Return only the plaintext DEK (encrypted DEK is stored server-side)
+        return {
+            dek: result.plaintext.toString('base64'),
+            keyVersion: result.keyVersion,
+            createdAt: result.createdAt,
+        };
+    }
+    catch (error) {
+        logger.error(`Failed to generate DEK for user ${userId}:`, error);
+        throw new HttpsError('internal', 'Failed to generate encryption key');
+    }
+});
+/**
+ * Retrieve and decrypt a user's Data Encryption Key (DEK)
+ */
+export const getUserDEK = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { appType } = request.data;
+    const userId = request.auth.uid;
+    if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
+        throw new HttpsError('invalid-argument', 'Valid appType is required');
+    }
+    try {
+        logger.info(`Retrieving DEK for user ${userId} in app ${appType}`);
+        // Get the encrypted DEK from Firestore
+        const keyDoc = await db.collection('user_encryption_keys').doc(`${userId}_${appType}`).get();
+        if (!keyDoc.exists) {
+            throw new HttpsError('not-found', 'User encryption key not found');
+        }
+        const keyData = keyDoc.data();
+        if (!keyData.isActive) {
+            throw new HttpsError('failed-precondition', 'User encryption key is not active');
+        }
+        // Decrypt the DEK using KMS
+        const decryptedDEK = await kmsService.decryptDEK(keyData.encryptedDEK, appType, userId);
+        // Log the key access
+        await logAuditAction(userId, 'DEK_ACCESSED', `${userId}_${appType}`, 'encryption_key', { appType });
+        return {
+            dek: decryptedDEK.toString('base64'),
+            keyVersion: keyData.keyVersion,
+            createdAt: keyData.createdAt,
+        };
+    }
+    catch (error) {
+        logger.error(`Failed to retrieve DEK for user ${userId}:`, error);
+        throw new HttpsError('internal', 'Failed to retrieve encryption key');
+    }
+});
+/**
+ * Rotate a user's Data Encryption Key (DEK)
+ */
+export const rotateUserDEK = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const { appType } = request.data;
+    const userId = request.auth.uid;
+    if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
+        throw new HttpsError('invalid-argument', 'Valid appType is required');
+    }
+    try {
+        logger.info(`Rotating DEK for user ${userId} in app ${appType}`);
+        const keyDocRef = db.collection('user_encryption_keys').doc(`${userId}_${appType}`);
+        // Get current key
+        const currentKeyDoc = await keyDocRef.get();
+        if (currentKeyDoc.exists) {
+            // Archive the old key
+            const oldKeyData = currentKeyDoc.data();
+            await db.collection('user_encryption_keys_history').add({
+                ...oldKeyData,
+                archivedAt: FieldValue.serverTimestamp(),
+                reason: 'key_rotation',
+            });
+        }
+        // Generate new DEK
+        const result = await kmsService.generateDEK(appType, userId);
+        // Store the new encrypted DEK
+        await keyDocRef.set({
+            userId,
+            appType,
+            encryptedDEK: result.encryptedDEK,
+            keyVersion: result.keyVersion,
+            createdAt: result.createdAt,
+            isActive: true,
+            rotatedAt: FieldValue.serverTimestamp(),
+        });
+        // Log the key rotation
+        await logAuditAction(userId, 'DEK_ROTATED', `${userId}_${appType}`, 'encryption_key', { appType });
+        return {
+            dek: result.plaintext.toString('base64'),
+            keyVersion: result.keyVersion,
+            createdAt: result.createdAt,
+        };
+    }
+    catch (error) {
+        logger.error(`Failed to rotate DEK for user ${userId}:`, error);
+        throw new HttpsError('internal', 'Failed to rotate encryption key');
+    }
+});
+/**
+ * Validate KMS access and key availability
+ */
+export const validateKMSAccess = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    try {
+        logger.info('Validating KMS access');
+        const validation = await kmsService.validateKMSAccess();
+        // Log the validation attempt
+        await logAuditAction(request.auth.uid, 'KMS_VALIDATION', undefined, 'system', validation);
+        return {
+            isValid: validation.menoWellnessKey && validation.partnerSupportKey,
+            details: validation,
+            timestamp: new Date(),
+        };
+    }
+    catch (error) {
+        logger.error('KMS validation failed:', error);
+        throw new HttpsError('internal', 'Failed to validate KMS access');
+    }
+});
+/**
+ * Get KMS key information for both apps
+ */
+export const getKMSKeyInfo = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    try {
+        logger.info('Getting KMS key information');
+        const menoKeyInfo = await kmsService.getKeyInfo('meno-wellness');
+        const partnerKeyInfo = await kmsService.getKeyInfo('partner-support');
+        // Log the info access
+        await logAuditAction(request.auth.uid, 'KMS_INFO_ACCESSED', undefined, 'system');
+        return {
+            menoWellness: menoKeyInfo,
+            partnerSupport: partnerKeyInfo,
+            timestamp: new Date(),
+        };
+    }
+    catch (error) {
+        logger.error('Failed to get KMS key info:', error);
+        throw new HttpsError('internal', 'Failed to get KMS key information');
+    }
+});

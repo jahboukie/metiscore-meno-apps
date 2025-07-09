@@ -27,9 +27,38 @@ export const KeyManager: React.FC<KeyManagerProps> = ({
   const [restorePassword, setRestorePassword] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+  // KMS-related state
+  const [kmsEnabled, setKmsEnabled] = useState(false);
+  const [kmsStatus, setKmsStatus] = useState<{
+    isValid: boolean;
+    details: any;
+    timestamp: Date;
+  } | null>(null);
+  const [keyType, setKeyType] = useState<'local' | 'kms'>('local');
+
   useEffect(() => {
     loadRotationHistory();
+    initializeKMSStatus();
   }, [userId]);
+
+  const initializeKMSStatus = async () => {
+    try {
+      const isEnabled = SecurityUtils.isKMSEnabled();
+      setKmsEnabled(isEnabled);
+
+      if (isEnabled) {
+        const status = await SecurityUtils.validateKMSAccess();
+        setKmsStatus(status);
+        setKeyType('kms');
+      } else {
+        setKeyType('local');
+      }
+    } catch (error) {
+      console.error('Failed to initialize KMS status:', error);
+      setKmsEnabled(false);
+      setKeyType('local');
+    }
+  };
 
   const loadRotationHistory = async () => {
     try {
@@ -43,12 +72,19 @@ export const KeyManager: React.FC<KeyManagerProps> = ({
   const handleKeyRotation = async () => {
     setIsLoading(true);
     try {
-      await SecurityUtils.rotateUserKey(userId);
+      if (kmsEnabled && keyType === 'kms') {
+        await SecurityUtils.rotateKMSProtectedKey(userId);
+        setMessage({ type: 'success', text: 'KMS-protected encryption key rotated successfully!' });
+      } else {
+        await SecurityUtils.rotateUserKey(userId);
+        setMessage({ type: 'success', text: 'Local encryption key rotated successfully!' });
+      }
+
       await loadRotationHistory();
-      setMessage({ type: 'success', text: 'Encryption key rotated successfully!' });
       onKeyRotated?.();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to rotate encryption key' });
+      const keyTypeText = keyType === 'kms' ? 'KMS-protected' : 'local';
+      setMessage({ type: 'error', text: `Failed to rotate ${keyTypeText} encryption key` });
     } finally {
       setIsLoading(false);
     }
@@ -126,6 +162,67 @@ export const KeyManager: React.FC<KeyManagerProps> = ({
         </div>
       )}
 
+      {/* KMS Status */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <div className="text-lg">🔑</div>
+            <h4 className="font-semibold text-gray-800">Key Management System</h4>
+          </div>
+          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+            keyType === 'kms'
+              ? 'bg-green-100 text-green-800'
+              : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {keyType === 'kms' ? 'KMS Protected' : 'Local Storage'}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-600">Status:</span>
+            <span className={`ml-2 ${
+              kmsEnabled && kmsStatus?.isValid
+                ? 'text-green-600'
+                : 'text-yellow-600'
+            }`}>
+              {kmsEnabled
+                ? (kmsStatus?.isValid ? 'KMS Available' : 'KMS Issues Detected')
+                : 'Local Mode'
+              }
+            </span>
+          </div>
+
+          <div>
+            <span className="font-medium text-gray-600">Security Level:</span>
+            <span className={`ml-2 ${
+              keyType === 'kms' ? 'text-green-600' : 'text-blue-600'
+            }`}>
+              {keyType === 'kms' ? 'Hardware Protected' : 'Software Protected'}
+            </span>
+          </div>
+
+          {kmsEnabled && (
+            <div className="md:col-span-2">
+              <span className="font-medium text-gray-600">Region:</span>
+              <span className="ml-2 text-gray-800">
+                {process.env.NEXT_PUBLIC_KMS_LOCATION || 'northamerica-northeast2'}
+              </span>
+              <span className="ml-4 font-medium text-gray-600">App:</span>
+              <span className="ml-2 text-gray-800">
+                {process.env.NEXT_PUBLIC_APP_TYPE || 'meno-wellness'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {kmsStatus && !kmsStatus.isValid && (
+          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+            <strong>Warning:</strong> KMS validation failed. Using local key storage as fallback.
+          </div>
+        )}
+      </div>
+
       {/* Key Operations */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Key Rotation */}
@@ -135,7 +232,7 @@ export const KeyManager: React.FC<KeyManagerProps> = ({
             <h4 className="font-semibold text-blue-900">Rotate Key</h4>
           </div>
           <p className="text-sm text-blue-700 mb-4">
-            Generate a new encryption key for enhanced security
+            Generate a new {keyType === 'kms' ? 'KMS-protected' : 'local'} encryption key for enhanced security
           </p>
           <Button
             onClick={handleKeyRotation}

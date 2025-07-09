@@ -141,6 +141,7 @@ export class AnalyticsService {
   } {
     const sentimentScores: number[] = [];
     const emotionalPatterns: EmotionalPattern[] = [];
+    const symptomCounts: { [key: string]: { count: number; totalSentiment: number } } = {};
 
     entries.forEach(entry => {
       const analysis = entry.analysis as SentimentAnalysisResponse;
