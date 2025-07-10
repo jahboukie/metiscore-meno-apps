@@ -62,7 +62,7 @@ export class SecurityUtils {
       throw new Error('Firebase app not initialized. Call SecurityUtils.setFirebaseApp(app) first.');
     }
 
-    return getFunctions(SecurityUtils.firebaseApp, 'northamerica-northeast1');
+    return getFunctions(SecurityUtils.firebaseApp);
   }
 
   // Firebase app instance (to be set by consuming applications)
@@ -121,10 +121,28 @@ export class SecurityUtils {
       const result = await store.get(userId) as unknown as StoredKeyData | undefined;
       if (!result) return null;
 
-      // Convert ArrayBuffer to Uint8Array if needed
-      const keyData = result.key instanceof ArrayBuffer
-        ? new Uint8Array(result.key)
-        : result.key;
+      // Ensure we have valid key data
+      if (!result.key) {
+        console.error('No key data found for user:', userId);
+        return null;
+      }
+
+      // Convert to ArrayBuffer if needed
+      let keyData: ArrayBuffer;
+      if (result.key instanceof ArrayBuffer) {
+        keyData = result.key;
+      } else if (result.key instanceof Uint8Array) {
+        keyData = result.key.buffer.slice(result.key.byteOffset, result.key.byteOffset + result.key.byteLength);
+      } else {
+        console.error('Invalid key data type:', typeof result.key);
+        return null;
+      }
+
+      // Validate key length (AES-256 = 32 bytes)
+      if (keyData.byteLength !== 32) {
+        console.error('Invalid key length:', keyData.byteLength, 'expected 32 bytes');
+        return null;
+      }
 
       return await crypto.subtle.importKey(
         'raw',

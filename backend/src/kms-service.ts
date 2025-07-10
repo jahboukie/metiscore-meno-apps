@@ -16,13 +16,14 @@ interface KMSConfig {
 }
 
 export class KMSService {
-  private client: KeyManagementServiceClient;
+  private client: KeyManagementServiceClient | null = null;
   private config: KMSConfig;
 
   constructor() {
-    this.client = new KeyManagementServiceClient();
+    // Don't initialize the client immediately - use lazy initialization
     this.config = {
-      projectId: process.env.GOOGLE_CLOUD_PROJECT || 'claude-code-meno-app',
+      // Use Firebase-provided project ID (GCLOUD_PROJECT is automatically available)
+      projectId: process.env.GCLOUD_PROJECT || process.env.FIREBASE_PROJECT || 'claude-code-meno-app',
       locationId: 'northamerica-northeast2',
       keyRingId: 'app-backend-meno-apps',
       menoWellnessKeyId: 'meno-app-encryption-key',
@@ -31,14 +32,30 @@ export class KMSService {
   }
 
   /**
+   * Lazy initialization of KMS client
+   */
+  private getClient(): KeyManagementServiceClient {
+    if (!this.client) {
+      try {
+        this.client = new KeyManagementServiceClient();
+        logger.info('KMS client initialized successfully');
+      } catch (error) {
+        logger.error('Failed to initialize KMS client:', error);
+        throw new Error(`KMS client initialization failed: ${error}`);
+      }
+    }
+    return this.client;
+  }
+
+  /**
    * Get the appropriate KMS key name based on app type
    */
   private getKeyName(appType: AppType): string {
-    const keyId = appType === 'meno-wellness' 
-      ? this.config.menoWellnessKeyId 
+    const keyId = appType === 'meno-wellness'
+      ? this.config.menoWellnessKeyId
       : this.config.partnerSupportKeyId;
-    
-    return this.client.cryptoKeyPath(
+
+    return this.getClient().cryptoKeyPath(
       this.config.projectId,
       this.config.locationId,
       this.config.keyRingId,
@@ -61,7 +78,7 @@ export class KMSService {
       
       logger.info(`Encrypting DEK for user ${userId} using ${appType} key`);
       
-      const [result] = await this.client.encrypt({
+      const [result] = await this.getClient().encrypt({
         name: keyName,
         plaintext: dek,
       });
@@ -93,7 +110,7 @@ export class KMSService {
       
       logger.info(`Decrypting DEK for user ${userId} using ${appType} key`);
       
-      const [result] = await this.client.decrypt({
+      const [result] = await this.getClient().decrypt({
         name: keyName,
         ciphertext: ciphertext,
       });
@@ -129,7 +146,7 @@ export class KMSService {
       const plaintext = Buffer.from(crypto.getRandomValues(new Uint8Array(32)));
 
       // Encrypt the DEK with KMS
-      const [result] = await this.client.encrypt({
+      const [result] = await this.getClient().encrypt({
         name: keyName,
         plaintext: plaintext,
       });
@@ -189,7 +206,7 @@ export class KMSService {
 
     try {
       const menoKeyName = this.getKeyName('meno-wellness');
-      await this.client.getCryptoKey({ name: menoKeyName });
+      await this.getClient().getCryptoKey({ name: menoKeyName });
       menoWellnessKey = true;
       logger.info('MenoWellness KMS key is accessible');
     } catch (error) {
@@ -199,7 +216,7 @@ export class KMSService {
 
     try {
       const partnerKeyName = this.getKeyName('partner-support');
-      await this.client.getCryptoKey({ name: partnerKeyName });
+      await this.getClient().getCryptoKey({ name: partnerKeyName });
       partnerSupportKey = true;
       logger.info('Partner Support KMS key is accessible');
     } catch (error) {

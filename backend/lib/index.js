@@ -1,15 +1,30 @@
-import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
-import { logger } from 'firebase-functions/v2';
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-import { KMSService } from './kms-service';
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getKMSKeyInfo = exports.validateKMSAccess = exports.rotateUserDEK = exports.getUserDEK = exports.generateUserDEK = exports.validateEncryptedData = exports.cleanupExpiredData = exports.processAccountDeletion = exports.anonymizeUserData = exports.requestAccountDeletion = exports.exportUserData = exports.acceptPartnerInvite = exports.onboardnewuser = void 0;
+const https_1 = require("firebase-functions/v2/https");
+const v2_1 = require("firebase-functions/v2");
+const app_1 = require("firebase-admin/app");
+const firestore_1 = require("firebase-admin/firestore");
+const auth_1 = require("firebase-admin/auth");
+const kms_service_1 = require("./kms-service");
+// Configuration for 2nd Gen functions
+const functionConfig = {
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    maxInstances: 10,
+};
 // Initialize Firebase Admin
-initializeApp();
-const db = getFirestore();
-const auth = getAuth();
-// Initialize KMS Service
-const kmsService = new KMSService();
+(0, app_1.initializeApp)();
+const db = (0, firestore_1.getFirestore)();
+const auth = (0, auth_1.getAuth)();
+// Lazy initialization of KMS Service
+let kmsService = null;
+function getKMSService() {
+    if (!kmsService) {
+        kmsService = new kms_service_1.KMSService();
+    }
+    return kmsService;
+}
 // CORS configuration for API calls
 const corsConfig = {
     cors: true,
@@ -17,7 +32,7 @@ const corsConfig = {
 /**
  * User onboarding function - CORRECTED to be non-destructive.
  */
-export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
+exports.onboardnewuser = (0, https_1.onRequest)(corsConfig, async (req, res) => {
     if (req.method !== 'POST') {
         res.status(405).json({ error: 'Method not allowed' });
         return;
@@ -33,15 +48,15 @@ export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
         // --- FIX: CHECK IF USER EXISTS BEFORE CREATING ---
         if (!userDoc.exists) {
             // User does not exist, so create them with default values.
-            logger.info(`New user detected. Onboarding user: ${uid}`);
+            v2_1.logger.info(`New user detected. Onboarding user: ${uid}`);
             const userData = {
                 uid,
                 email: email || null,
                 displayName: displayName || null,
                 role: 'primary', // Default role for any new user
                 partnerId: null,
-                createdAt: FieldValue.serverTimestamp(),
-                lastActiveAt: FieldValue.serverTimestamp(),
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+                lastActiveAt: firestore_1.FieldValue.serverTimestamp(),
             };
             await userRef.set(userData);
             const jurisdiction = detectJurisdiction(req);
@@ -49,7 +64,7 @@ export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
             await db.collection('data_retention').doc(uid).set({
                 userId: uid,
                 dataType: 'personal',
-                createdAt: FieldValue.serverTimestamp(),
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
                 retentionPeriod,
                 jurisdiction,
             });
@@ -66,8 +81,8 @@ export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
         }
         else {
             // User already exists, just update their last active time.
-            logger.info(`Existing user detected. Updating lastActiveAt for user: ${uid}`);
-            await userRef.update({ lastActiveAt: FieldValue.serverTimestamp() });
+            v2_1.logger.info(`Existing user detected. Updating lastActiveAt for user: ${uid}`);
+            await userRef.update({ lastActiveAt: firestore_1.FieldValue.serverTimestamp() });
             res.status(200).json({
                 success: true,
                 message: 'Existing user activity updated.'
@@ -75,7 +90,7 @@ export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
         }
     }
     catch (error) {
-        logger.error('Onboarding error:', error);
+        v2_1.logger.error('Onboarding error:', error);
         res.status(500).json({
             error: 'Failed to onboard user',
             details: error instanceof Error ? error.message : 'Unknown error'
@@ -85,29 +100,29 @@ export const onboardnewuser = onRequest(corsConfig, async (req, res) => {
 /**
  * Accept partner invite function - Robust version
  */
-export const acceptPartnerInvite = onCall(async (request) => {
+exports.acceptPartnerInvite = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth, data } = request;
     if (!userAuth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in to accept an invite.');
+        throw new https_1.HttpsError('unauthenticated', 'You must be logged in to accept an invite.');
     }
     const partnerUid = userAuth.uid;
     const { inviteCode } = data;
     if (!inviteCode) {
-        throw new HttpsError('invalid-argument', 'An invite code is required.');
+        throw new https_1.HttpsError('invalid-argument', 'An invite code is required.');
     }
     try {
         const inviteDocRef = db.collection('invites').doc(inviteCode);
         const inviteDoc = await inviteDocRef.get();
         if (!inviteDoc.exists) {
-            throw new HttpsError('not-found', 'Invalid invite code. Please check the code and try again.');
+            throw new https_1.HttpsError('not-found', 'Invalid invite code. Please check the code and try again.');
         }
         const inviteData = inviteDoc.data();
         if (inviteData.status !== 'pending') {
-            throw new HttpsError('failed-precondition', 'This invite has already been used or has expired.');
+            throw new https_1.HttpsError('failed-precondition', 'This invite has already been used or has expired.');
         }
         if (inviteData.expiresAt.toDate() < new Date()) {
             await inviteDocRef.update({ status: 'expired' });
-            throw new HttpsError('failed-precondition', 'This invite has expired.');
+            throw new https_1.HttpsError('failed-precondition', 'This invite has expired.');
         }
         const primaryUserRef = db.collection('users').doc(inviteData.fromUserId);
         const partnerUserRef = db.collection('users').doc(partnerUid);
@@ -116,21 +131,21 @@ export const acceptPartnerInvite = onCall(async (request) => {
             partnerUserRef.get()
         ]);
         if (!primaryUserDoc.exists || !partnerUserDoc.exists) {
-            throw new HttpsError('not-found', 'One or both user accounts could not be found.');
+            throw new https_1.HttpsError('not-found', 'One or both user accounts could not be found.');
         }
         const batch = db.batch();
         batch.set(primaryUserRef, {
             partnerId: partnerUid,
-            lastActiveAt: FieldValue.serverTimestamp(),
+            lastActiveAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         batch.set(partnerUserRef, {
             partnerId: inviteData.fromUserId,
             role: 'partner',
-            lastActiveAt: FieldValue.serverTimestamp(),
+            lastActiveAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         batch.update(inviteDocRef, {
             status: 'completed',
-            completedAt: FieldValue.serverTimestamp(),
+            completedAt: firestore_1.FieldValue.serverTimestamp(),
             acceptedBy: partnerUid,
         });
         await batch.commit();
@@ -152,23 +167,23 @@ export const acceptPartnerInvite = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error('Accept invite error:', error);
+        v2_1.logger.error('Accept invite error:', error);
         await logAuditAction(partnerUid, 'partner_invite_failed', undefined, 'invite', {
             inviteCode,
             error: error instanceof Error ? error.message : 'Unknown error',
         });
-        if (error instanceof HttpsError) {
+        if (error instanceof https_1.HttpsError) {
             throw error;
         }
-        throw new HttpsError('internal', 'An unexpected error occurred while accepting the invite. Please try again.');
+        throw new https_1.HttpsError('internal', 'An unexpected error occurred while accepting the invite. Please try again.');
     }
 });
 // --- Helper functions and other exports ---
 // This section should be filled in with the complete implementations from the previous step
-export const exportUserData = onCall(async (request) => {
+exports.exportUserData = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth } = request;
     if (!userAuth)
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     const userId = userAuth.uid;
     try {
         // Collect user data from all collections
@@ -215,20 +230,20 @@ export const exportUserData = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error('Data export failed:', error);
-        throw new HttpsError('internal', 'Data export failed');
+        v2_1.logger.error('Data export failed:', error);
+        throw new https_1.HttpsError('internal', 'Data export failed');
     }
 });
-export const requestAccountDeletion = onCall(async (request) => {
+exports.requestAccountDeletion = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth } = request;
     if (!userAuth)
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     const userId = userAuth.uid;
     try {
         // Create deletion request
         const deletionRequest = {
             userId,
-            requestedAt: FieldValue.serverTimestamp(),
+            requestedAt: firestore_1.FieldValue.serverTimestamp(),
             status: 'pending',
             reason: 'User requested account deletion',
             ipAddress: '0.0.0.0', // Would be populated from request in production
@@ -242,17 +257,17 @@ export const requestAccountDeletion = onCall(async (request) => {
         return { requestId: docRef.id, message: 'Deletion request created successfully' };
     }
     catch (error) {
-        logger.error('Deletion request failed:', error);
-        throw new HttpsError('internal', 'Deletion request failed');
+        v2_1.logger.error('Deletion request failed:', error);
+        throw new https_1.HttpsError('internal', 'Deletion request failed');
     }
 });
-export const anonymizeUserData = onCall(async (request) => {
+exports.anonymizeUserData = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth } = request;
     if (!userAuth)
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     const consentDoc = await db.collection('user_consents').doc(userAuth.uid).get();
     if (!consentDoc.exists || !consentDoc.data()?.researchParticipation)
-        throw new HttpsError('permission-denied', 'Research participation consent required');
+        throw new https_1.HttpsError('permission-denied', 'Research participation consent required');
     // Full implementation...
     return { success: true };
 });
@@ -290,7 +305,7 @@ async function executeAccountDeletion(userId, requestId) {
     // Update deletion request status
     batch.update(db.collection('deletion_requests').doc(requestId), {
         status: 'completed',
-        processedAt: FieldValue.serverTimestamp(),
+        processedAt: firestore_1.FieldValue.serverTimestamp(),
         notes: 'Account and all associated data deleted successfully'
     });
     // Execute all deletions
@@ -303,10 +318,10 @@ async function executeAccountDeletion(userId, requestId) {
         dataCollectionsDeleted: collections.length
     });
 }
-export const processAccountDeletion = onCall(async (request) => {
+exports.processAccountDeletion = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth, data } = request;
     if (!userAuth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { requestId } = data;
     try {
@@ -314,19 +329,19 @@ export const processAccountDeletion = onCall(async (request) => {
         return { success: true, message: 'Account deleted successfully' };
     }
     catch (error) {
-        logger.error('Account deletion failed:', error);
+        v2_1.logger.error('Account deletion failed:', error);
         // Update deletion request with failure status
         if (requestId) {
             await db.collection('deletion_requests').doc(requestId).update({
                 status: 'failed',
-                processedAt: FieldValue.serverTimestamp(),
+                processedAt: firestore_1.FieldValue.serverTimestamp(),
                 notes: error instanceof Error ? error.message : 'Unknown error'
             });
         }
-        throw new HttpsError('internal', 'Account deletion failed');
+        throw new https_1.HttpsError('internal', 'Account deletion failed');
     }
 });
-export const cleanupExpiredData = onRequest(async (req, res) => {
+exports.cleanupExpiredData = (0, https_1.onRequest)(async (req, res) => {
     try {
         // Process pending deletion requests older than 30 days
         const thirtyDaysAgo = new Date();
@@ -342,7 +357,7 @@ export const cleanupExpiredData = onRequest(async (req, res) => {
                 processedCount++;
             }
             catch (error) {
-                logger.error(`Failed to process deletion for ${doc.id}:`, error);
+                v2_1.logger.error(`Failed to process deletion for ${doc.id}:`, error);
             }
         }
         res.status(200).json({
@@ -351,24 +366,24 @@ export const cleanupExpiredData = onRequest(async (req, res) => {
         });
     }
     catch (error) {
-        logger.error('Cleanup failed:', error);
+        v2_1.logger.error('Cleanup failed:', error);
         res.status(500).json({ success: false, error: 'Cleanup failed' });
     }
 });
-export const validateEncryptedData = onCall(async (request) => {
+exports.validateEncryptedData = (0, https_1.onCall)(async (request) => {
     const { auth: userAuth, data } = request;
     if (!userAuth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { encryptedData, keyId } = data;
     try {
         // Validate encrypted data structure
         if (!encryptedData?.encryptedValue || !encryptedData?.algorithm || !keyId) {
-            throw new HttpsError('invalid-argument', 'Invalid encrypted data structure');
+            throw new https_1.HttpsError('invalid-argument', 'Invalid encrypted data structure');
         }
         // Ensure algorithm is supported
         if (encryptedData.algorithm !== 'AES-256-GCM') {
-            throw new HttpsError('invalid-argument', 'Unsupported encryption algorithm');
+            throw new https_1.HttpsError('invalid-argument', 'Unsupported encryption algorithm');
         }
         // Log successful validation for audit
         await logAuditAction(userAuth.uid, 'encrypted_data_validated', undefined, 'journal_entry', {
@@ -379,19 +394,19 @@ export const validateEncryptedData = onCall(async (request) => {
         return {
             success: true,
             message: 'Encrypted data validated successfully',
-            timestamp: FieldValue.serverTimestamp()
+            timestamp: firestore_1.FieldValue.serverTimestamp()
         };
     }
     catch (error) {
-        logger.error('Encrypted data validation failed:', error);
+        v2_1.logger.error('Encrypted data validation failed:', error);
         await logAuditAction(userAuth.uid, 'encrypted_data_validation_failed', undefined, 'journal_entry', {
             error: error instanceof Error ? error.message : 'Unknown error',
             keyId
         });
-        if (error instanceof HttpsError) {
+        if (error instanceof https_1.HttpsError) {
             throw error;
         }
-        throw new HttpsError('internal', 'Validation failed');
+        throw new https_1.HttpsError('internal', 'Validation failed');
     }
 });
 function detectJurisdiction(req) {
@@ -411,7 +426,7 @@ function getRetentionPeriod(jurisdiction, dataType) {
 async function logAuditAction(userId, action, resourceId, resourceType, details, req) {
     try {
         const auditLog = {
-            userId, action, details: details || {}, timestamp: FieldValue.serverTimestamp(),
+            userId, action, details: details || {}, timestamp: firestore_1.FieldValue.serverTimestamp(),
             ipAddress: req?.ip || req?.connection?.remoteAddress || '0.0.0.0',
             userAgent: req?.get('User-Agent') || 'Unknown',
         };
@@ -422,7 +437,7 @@ async function logAuditAction(userId, action, resourceId, resourceType, details,
         await db.collection('audit_logs').add(auditLog);
     }
     catch (error) {
-        logger.error('Audit logging failed:', { error, userId, action });
+        v2_1.logger.error('Audit logging failed:', { error, userId, action });
     }
 }
 function generateAnonymousId(originalId) {
@@ -447,18 +462,18 @@ function generateCohortId(date) {
 /**
  * Generate a new Data Encryption Key (DEK) for a user
  */
-export const generateUserDEK = onCall(async (request) => {
+exports.generateUserDEK = (0, https_1.onCall)(functionConfig, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { appType } = request.data;
     const userId = request.auth.uid;
     if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
-        throw new HttpsError('invalid-argument', 'Valid appType is required');
+        throw new https_1.HttpsError('invalid-argument', 'Valid appType is required');
     }
     try {
-        logger.info(`Generating DEK for user ${userId} in app ${appType}`);
-        const result = await kmsService.generateDEK(appType, userId);
+        v2_1.logger.info(`Generating DEK for user ${userId} in app ${appType}`);
+        const result = await getKMSService().generateDEK(appType, userId);
         // Store the encrypted DEK in Firestore for future use
         await db.collection('user_encryption_keys').doc(`${userId}_${appType}`).set({
             userId,
@@ -478,35 +493,35 @@ export const generateUserDEK = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error(`Failed to generate DEK for user ${userId}:`, error);
-        throw new HttpsError('internal', 'Failed to generate encryption key');
+        v2_1.logger.error(`Failed to generate DEK for user ${userId}:`, error);
+        throw new https_1.HttpsError('internal', 'Failed to generate encryption key');
     }
 });
 /**
  * Retrieve and decrypt a user's Data Encryption Key (DEK)
  */
-export const getUserDEK = onCall(async (request) => {
+exports.getUserDEK = (0, https_1.onCall)(functionConfig, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { appType } = request.data;
     const userId = request.auth.uid;
     if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
-        throw new HttpsError('invalid-argument', 'Valid appType is required');
+        throw new https_1.HttpsError('invalid-argument', 'Valid appType is required');
     }
     try {
-        logger.info(`Retrieving DEK for user ${userId} in app ${appType}`);
+        v2_1.logger.info(`Retrieving DEK for user ${userId} in app ${appType}`);
         // Get the encrypted DEK from Firestore
         const keyDoc = await db.collection('user_encryption_keys').doc(`${userId}_${appType}`).get();
         if (!keyDoc.exists) {
-            throw new HttpsError('not-found', 'User encryption key not found');
+            throw new https_1.HttpsError('not-found', 'User encryption key not found');
         }
         const keyData = keyDoc.data();
         if (!keyData.isActive) {
-            throw new HttpsError('failed-precondition', 'User encryption key is not active');
+            throw new https_1.HttpsError('failed-precondition', 'User encryption key is not active');
         }
         // Decrypt the DEK using KMS
-        const decryptedDEK = await kmsService.decryptDEK(keyData.encryptedDEK, appType, userId);
+        const decryptedDEK = await getKMSService().decryptDEK(keyData.encryptedDEK, appType, userId);
         // Log the key access
         await logAuditAction(userId, 'DEK_ACCESSED', `${userId}_${appType}`, 'encryption_key', { appType });
         return {
@@ -516,24 +531,24 @@ export const getUserDEK = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error(`Failed to retrieve DEK for user ${userId}:`, error);
-        throw new HttpsError('internal', 'Failed to retrieve encryption key');
+        v2_1.logger.error(`Failed to retrieve DEK for user ${userId}:`, error);
+        throw new https_1.HttpsError('internal', 'Failed to retrieve encryption key');
     }
 });
 /**
  * Rotate a user's Data Encryption Key (DEK)
  */
-export const rotateUserDEK = onCall(async (request) => {
+exports.rotateUserDEK = (0, https_1.onCall)(functionConfig, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     const { appType } = request.data;
     const userId = request.auth.uid;
     if (!appType || !['meno-wellness', 'partner-support'].includes(appType)) {
-        throw new HttpsError('invalid-argument', 'Valid appType is required');
+        throw new https_1.HttpsError('invalid-argument', 'Valid appType is required');
     }
     try {
-        logger.info(`Rotating DEK for user ${userId} in app ${appType}`);
+        v2_1.logger.info(`Rotating DEK for user ${userId} in app ${appType}`);
         const keyDocRef = db.collection('user_encryption_keys').doc(`${userId}_${appType}`);
         // Get current key
         const currentKeyDoc = await keyDocRef.get();
@@ -542,12 +557,12 @@ export const rotateUserDEK = onCall(async (request) => {
             const oldKeyData = currentKeyDoc.data();
             await db.collection('user_encryption_keys_history').add({
                 ...oldKeyData,
-                archivedAt: FieldValue.serverTimestamp(),
+                archivedAt: firestore_1.FieldValue.serverTimestamp(),
                 reason: 'key_rotation',
             });
         }
         // Generate new DEK
-        const result = await kmsService.generateDEK(appType, userId);
+        const result = await getKMSService().generateDEK(appType, userId);
         // Store the new encrypted DEK
         await keyDocRef.set({
             userId,
@@ -556,7 +571,7 @@ export const rotateUserDEK = onCall(async (request) => {
             keyVersion: result.keyVersion,
             createdAt: result.createdAt,
             isActive: true,
-            rotatedAt: FieldValue.serverTimestamp(),
+            rotatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         // Log the key rotation
         await logAuditAction(userId, 'DEK_ROTATED', `${userId}_${appType}`, 'encryption_key', { appType });
@@ -567,20 +582,20 @@ export const rotateUserDEK = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error(`Failed to rotate DEK for user ${userId}:`, error);
-        throw new HttpsError('internal', 'Failed to rotate encryption key');
+        v2_1.logger.error(`Failed to rotate DEK for user ${userId}:`, error);
+        throw new https_1.HttpsError('internal', 'Failed to rotate encryption key');
     }
 });
 /**
  * Validate KMS access and key availability
  */
-export const validateKMSAccess = onCall(async (request) => {
+exports.validateKMSAccess = (0, https_1.onCall)(functionConfig, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     try {
-        logger.info('Validating KMS access');
-        const validation = await kmsService.validateKMSAccess();
+        v2_1.logger.info('Validating KMS access');
+        const validation = await getKMSService().validateKMSAccess();
         // Log the validation attempt
         await logAuditAction(request.auth.uid, 'KMS_VALIDATION', undefined, 'system', validation);
         return {
@@ -590,21 +605,21 @@ export const validateKMSAccess = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error('KMS validation failed:', error);
-        throw new HttpsError('internal', 'Failed to validate KMS access');
+        v2_1.logger.error('KMS validation failed:', error);
+        throw new https_1.HttpsError('internal', 'Failed to validate KMS access');
     }
 });
 /**
  * Get KMS key information for both apps
  */
-export const getKMSKeyInfo = onCall(async (request) => {
+exports.getKMSKeyInfo = (0, https_1.onCall)(functionConfig, async (request) => {
     if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be authenticated');
+        throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
     try {
-        logger.info('Getting KMS key information');
-        const menoKeyInfo = await kmsService.getKeyInfo('meno-wellness');
-        const partnerKeyInfo = await kmsService.getKeyInfo('partner-support');
+        v2_1.logger.info('Getting KMS key information');
+        const menoKeyInfo = await getKMSService().getKeyInfo('meno-wellness');
+        const partnerKeyInfo = await getKMSService().getKeyInfo('partner-support');
         // Log the info access
         await logAuditAction(request.auth.uid, 'KMS_INFO_ACCESSED', undefined, 'system');
         return {
@@ -614,7 +629,7 @@ export const getKMSKeyInfo = onCall(async (request) => {
         };
     }
     catch (error) {
-        logger.error('Failed to get KMS key info:', error);
-        throw new HttpsError('internal', 'Failed to get KMS key information');
+        v2_1.logger.error('Failed to get KMS key info:', error);
+        throw new https_1.HttpsError('internal', 'Failed to get KMS key information');
     }
 });

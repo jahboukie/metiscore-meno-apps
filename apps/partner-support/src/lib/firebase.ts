@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') {
 // Export the initialized services
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Use Canadian region for PIPEDA/PHIPA compliance as per memory
-const functions = getFunctions(app, 'northamerica-northeast1');
+// Use default region for now (functions are deployed to us-central1)
+const functions = getFunctions(app);
 
 export { app, auth, db, functions };

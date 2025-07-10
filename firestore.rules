@@ -12,7 +12,13 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId);
+      allow read: if isAuthenticated() &&
+        (
+          isOwner(userId) ||
+          // Allow partners to read each other's basic info
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId == userId
+        );
     }
 
     match /user_consents/{userId} {

@@ -5,13 +5,27 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { KMSService } from './kms-service';
 
+// Configuration for 2nd Gen functions
+const functionConfig = {
+  memory: '256MiB' as const,
+  timeoutSeconds: 60,
+  maxInstances: 10,
+};
+
 // Initialize Firebase Admin
 initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
-// Initialize KMS Service
-const kmsService = new KMSService();
+// Lazy initialization of KMS Service
+let kmsService: KMSService | null = null;
+
+function getKMSService(): KMSService {
+  if (!kmsService) {
+    kmsService = new KMSService();
+  }
+  return kmsService;
+}
 
 // CORS configuration for API calls
 const corsConfig = {
@@ -530,7 +544,7 @@ function generateCohortId(date: Date): string {
 /**
  * Generate a new Data Encryption Key (DEK) for a user
  */
-export const generateUserDEK = onCall(async (request) => {
+export const generateUserDEK = onCall(functionConfig, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -545,7 +559,7 @@ export const generateUserDEK = onCall(async (request) => {
   try {
     logger.info(`Generating DEK for user ${userId} in app ${appType}`);
 
-    const result = await kmsService.generateDEK(appType, userId);
+    const result = await getKMSService().generateDEK(appType, userId);
 
     // Store the encrypted DEK in Firestore for future use
     await db.collection('user_encryption_keys').doc(`${userId}_${appType}`).set({
@@ -575,7 +589,7 @@ export const generateUserDEK = onCall(async (request) => {
 /**
  * Retrieve and decrypt a user's Data Encryption Key (DEK)
  */
-export const getUserDEK = onCall(async (request) => {
+export const getUserDEK = onCall(functionConfig, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -604,7 +618,7 @@ export const getUserDEK = onCall(async (request) => {
     }
 
     // Decrypt the DEK using KMS
-    const decryptedDEK = await kmsService.decryptDEK(keyData.encryptedDEK, appType, userId);
+    const decryptedDEK = await getKMSService().decryptDEK(keyData.encryptedDEK, appType, userId);
 
     // Log the key access
     await logAuditAction(userId, 'DEK_ACCESSED', `${userId}_${appType}`, 'encryption_key', { appType });
@@ -623,7 +637,7 @@ export const getUserDEK = onCall(async (request) => {
 /**
  * Rotate a user's Data Encryption Key (DEK)
  */
-export const rotateUserDEK = onCall(async (request) => {
+export const rotateUserDEK = onCall(functionConfig, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -654,7 +668,7 @@ export const rotateUserDEK = onCall(async (request) => {
     }
 
     // Generate new DEK
-    const result = await kmsService.generateDEK(appType, userId);
+    const result = await getKMSService().generateDEK(appType, userId);
 
     // Store the new encrypted DEK
     await keyDocRef.set({
@@ -684,7 +698,7 @@ export const rotateUserDEK = onCall(async (request) => {
 /**
  * Validate KMS access and key availability
  */
-export const validateKMSAccess = onCall(async (request) => {
+export const validateKMSAccess = onCall(functionConfig, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -692,7 +706,7 @@ export const validateKMSAccess = onCall(async (request) => {
   try {
     logger.info('Validating KMS access');
 
-    const validation = await kmsService.validateKMSAccess();
+    const validation = await getKMSService().validateKMSAccess();
 
     // Log the validation attempt
     await logAuditAction(request.auth.uid, 'KMS_VALIDATION', undefined, 'system', validation);
@@ -711,7 +725,7 @@ export const validateKMSAccess = onCall(async (request) => {
 /**
  * Get KMS key information for both apps
  */
-export const getKMSKeyInfo = onCall(async (request) => {
+export const getKMSKeyInfo = onCall(functionConfig, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -719,8 +733,8 @@ export const getKMSKeyInfo = onCall(async (request) => {
   try {
     logger.info('Getting KMS key information');
 
-    const menoKeyInfo = await kmsService.getKeyInfo('meno-wellness');
-    const partnerKeyInfo = await kmsService.getKeyInfo('partner-support');
+    const menoKeyInfo = await getKMSService().getKeyInfo('meno-wellness');
+    const partnerKeyInfo = await getKMSService().getKeyInfo('partner-support');
 
     // Log the info access
     await logAuditAction(request.auth.uid, 'KMS_INFO_ACCESSED', undefined, 'system');
