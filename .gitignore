@@ -14,6 +14,15 @@ functions/lib/
 firebase-debug.log
 firestore-debug.log
 
+# Security - Never commit service account keys
+keys/
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!firebase.json
+!firestore.indexes.json
+
 # IDE
 .vscode/
 .DS_Store
