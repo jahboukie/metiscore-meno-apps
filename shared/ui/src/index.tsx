@@ -6,7 +6,7 @@ export * from './ConsentManager';
 export * from './SecurityAuthProvider';
 export * from './security-utils';
 export * from './UserDataManager';
-export * from './KeyManager';
+// KeyManager removed - replaced with simple status banners in profile pages
 export * from './DataProcessingAgreement';
 export * from './SentimentAnalysisService';
 export * from './PDFReportService';

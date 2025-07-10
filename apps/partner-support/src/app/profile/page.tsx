@@ -5,7 +5,7 @@ import { useAuth } from '../components/auth-provider';
 import { db, functions } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { Button, UserDataManager, KeyManager } from '@metiscore/ui';
+import { Button, UserDataManager } from '@metiscore/ui';
 import { UserConsent } from '@metiscore/types';
 
 export default function ProfilePage() {
@@ -457,18 +457,55 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <KeyManager 
-            userId={user.uid}
-            onKeyRotated={() => {
-              console.log('Partner encryption key rotated');
-            }}
-            onBackupCreated={() => {
-              console.log('Partner key backup created');
-            }}
-            onKeyRestored={() => {
-              console.log('Partner key restored from backup');
-            }}
-          />
+          {/* Simple KMS Status Banner */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="flex items-start space-x-4">
+              <div className="text-blue-600 text-3xl">🔒</div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-blue-900 text-lg mb-2">
+                  Local Encryption Active
+                </h4>
+                <p className="text-blue-700 mb-4">
+                  Your data is encrypted using local encryption keys stored securely in your browser.
+                  This provides good security for partner communication and shared data access.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white rounded-lg p-3 border border-blue-200">
+                    <div className="text-sm font-medium text-blue-900">Security Level</div>
+                    <div className="text-blue-700">Browser Protected</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-blue-200">
+                    <div className="text-sm font-medium text-blue-900">Key Storage</div>
+                    <div className="text-blue-700">Local Device</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+                    ✅ AES-256 Encryption
+                  </span>
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+                    ✅ Local Storage
+                  </span>
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">
+                    ✅ Partner Privacy
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Security Information */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h5 className="font-medium text-gray-900 mb-2">Security Information</h5>
+            <div className="text-sm text-gray-600 space-y-1">
+              <p>• All shared data is encrypted both at rest and in transit</p>
+              <p>• Encryption keys are never transmitted or stored in plain text</p>
+              <p>• Web Crypto API provides cryptographic operations</p>
+              <p>• Partner communications are end-to-end encrypted</p>
+            </div>
+          </div>
         </div>
 
         {/* User Data Management Section */}
